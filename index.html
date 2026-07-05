@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Free SEO Audit Tool | SEOzar</title>
+<meta name="description" content="Check your website's SEO health in seconds. Free instant audit from SEOzar — Best AI SEO Agency in Delhi NCR & India." />
+<style>
+  :root {
+    --green: #1E8E3E;
+    --green-dark: #17692F;
+    --ink: #14171F;
+    --gray: #5B6270;
+    --line: #E4E7EC;
+    --paper: #FFFFFF;
+    --bg-soft: #F1FBF3;
+    --amber: #C8862B;
+    --red: #C0392B;
+    --mono: 'Courier New', monospace;
+    --sans: 'Segoe UI', -apple-system, Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    color: var(--ink);
+    background: var(--paper);
+  }
+  .wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* Header */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+  h1 {
+    font-size: 34px;
+    line-height: 1.2;
+    margin: 0 0 14px;
+    letter-spacing: -0.01em;
+  }
+  .lede {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--gray);
+    max-width: 56ch;
+    margin: 0 0 32px;
+  }
+
+  /* Form */
+  .form-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  #url-input {
+    flex: 1;
+    min-width: 220px;
+    padding: 15px 18px;
+    border: 1.5px solid var(--line);
+    border-radius: 999px;
+    font-size: 15px;
+    outline: none;
+    color: var(--ink);
+  }
+  #url-input:focus { border-color: var(--green); }
+  #scan-btn {
+    padding: 15px 28px;
+    border: none;
+    border-radius: 999px;
+    background: var(--green);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #scan-btn:hover { background: var(--green-dark); }
+  #scan-btn:disabled { background: #A9C9B2; cursor: default; }
+  .helper-note {
+    font-size: 12.5px;
+    color: #9AA1AC;
+    margin-top: 10px;
+  }
+
+  /* Loading */
+  #loading {
+    display: none;
+    margin-top: 36px;
+    padding: 20px;
+    border-radius: 16px;
+    background: var(--bg-soft);
+    font-size: 14px;
+    color: var(--gray);
+  }
+  #loading.active { display: block; }
+  .bar {
+    height: 4px;
+    width: 100%;
+    background: #DCEFDF;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .bar-fill {
+    height: 100%;
+    width: 40%;
+    background: var(--green);
+    border-radius: 4px;
+    animation: slide 1.1s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+  }
+
+  /* Error */
+  #error {
+    display: none;
+    margin-top: 24px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: #FDECEA;
+    color: var(--red);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  #error.active { display: block; }
+
+  /* Lead capture gate */
+  #gate {
+    display: none;
+    margin-top: 32px;
+    padding: 24px;
+    border: 1.5px solid var(--line);
+    border-radius: 16px;
+  }
+  #gate.active { display: block; }
+  #gate h3 { margin: 0 0 6px; font-size: 18px; }
+  #gate p { margin: 0 0 16px; color: var(--gray); font-size: 14px; line-height: 1.5; }
+  #gate .form-row input { flex: 1; min-width: 160px; }
+  #gate .form-row button { background: var(--ink); }
+  #gate .form-row button:hover { background: #000; }
+
+  /* Report */
+  #report {
+    display: none;
+    margin-top: 32px;
+  }
+  #report.active { display: block; }
+  .report-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .report-head .site {
+    font-size: 14px;
+    color: var(--gray);
+    word-break: break-all;
+  }
+  .score-box { text-align: right; }
+  .score-box .num { font-size: 40px; font-weight: 800; line-height: 1; }
+  .score-box .label { font-size: 12px; color: #9AA1AC; }
+
+  .item {
+    display: flex;
+    gap: 14px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .item:last-child { border-bottom: none; }
+  .badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    flex-shrink: 0;
+    color: #fff;
+  }
+  .badge.pass { background: var(--green); }
+  .badge.warn { background: var(--amber); }
+  .badge.fail { background: var(--red); }
+  .item .title { font-weight: 700; font-size: 15px; margin-bottom: 3px; }
+  .item .detail { font-size: 14px; color: var(--gray); line-height: 1.5; }
+
+  .cta-box {
+    margin-top: 28px;
+    padding: 22px 24px;
+    border-radius: 16px;
+    background: var(--ink);
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .cta-box p { margin: 0; font-size: 14.5px; line-height: 1.5; max-width: 42ch; }
+  .cta-box a {
+    background: var(--green);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 22px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .cta-box a:hover { background: var(--green-dark); }
+
+  @media (max-width: 480px) {
+    h1 { font-size: 26px; }
+    .form-row { flex-direction: column; }
+    #scan-btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Free Tool by SEOzar</div>
+  <h1>Is Your Website Actually Ready to Rank?</h1>
+  <p class="lede">
+    Paste your website link below. In a few seconds, we'll check the basics Google looks at —
+    and tell you, in plain English, what's helping and what's holding you back.
+  </p>
+
+  <div class="form-row">
+    <input type="text" id="url-input" placeholder="yourwebsite.com" />
+    <button id="scan-btn">Check my site</button>
+  </div>
+  <div class="helper-note">No signup needed to start. It takes about 10 seconds.</div>
+
+  <div id="error"></div>
+
+  <div id="loading">
+    <div class="bar"><div class="bar-fill"></div></div>
+    <div id="loading-text">Reading your homepage…</div>
+  </div>
+
+  <div id="gate">
+    <h3>Your report is ready.</h3>
+    <p>Enter your email to see the full breakdown — we'll also send you a copy so you don't lose it.</p>
+    <div class="form-row">
+      <input type="email" id="lead-email" placeholder="you@business.com" />
+      <button id="unlock-btn">Show my report</button>
+    </div>
+  </div>
+
+  <div id="report"></div>
+
+</div>
+
+<script>
+(function() {
+  // ---- CONFIG: fill these in ----
+  const FUNCTION_URL = '/.netlify/functions/audit';   // Netlify function endpoint
+  const SHEET_WEBHOOK_URL = 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+
+  const urlInput = document.getElementById('url-input');
+  const scanBtn = document.getElementById('scan-btn');
+  const loading = document.getElementById('loading');
+  const loadingText = document.getElementById('loading-text');
+  const errorBox = document.getElementById('error');
+  const gate = document.getElementById('gate');
+  const unlockBtn = document.getElementById('unlock-btn');
+  const leadEmail = document.getElementById('lead-email');
+  const reportBox = document.getElementById('report');
+
+  const steps = [
+    'Reading your homepage…',
+    'Checking title & meta tags…',
+    'Looking at headings & content…',
+    'Checking images & mobile-friendliness…',
+    'Checking page speed…',
+    'Putting your report together…'
+  ];
+
+  let pendingResult = null;
+  let pendingUrl = null;
+
+  function normalize(raw) {
+    let u = raw.trim();
+    if (!u) return null;
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { return new URL(u); } catch (e) { return null; }
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add('active');
+  }
+
+  async function scan() {
+    const parsed = normalize(urlInput.value);
+    errorBox.classList.remove('active');
+    gate.classList.remove('active');
+    reportBox.classList.remove('active');
+    reportBox.innerHTML = '';
+
+    if (!parsed) {
+      showError('That doesn\'t look like a valid website address. Try something like "example.com".');
+      return;
+    }
+
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'Checking…';
+    loading.classList.add('active');
+
+    let i = 0;
+    loadingText.textContent = steps[0];
+    const timer = setInterval(() => {
+      i = Math.min(i + 1, steps.length - 1);
+      loadingText.textContent = steps[i];
+    }, 500);
+
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: parsed.href })
+      });
+      if (!res.ok) throw new Error('bad-response');
+      const data = await res.json();
+
+      clearInterval(timer);
+      loading.classList.remove('active');
+
+      pendingResult = data;
+      pendingUrl = parsed.hostname;
+      gate.classList.add('active');
+    } catch (e) {
+      clearInterval(timer);
+      loading.classList.remove('active');
+      showError('We couldn\'t check that site just now. It may be blocking automated checks, or the site may be temporarily down. Please try again in a moment.');
+    } finally {
+      scanBtn.disabled = false;
+      scanBtn.textContent = 'Check my site';
+    }
+  }
+
+  function iconFor(status) {
+    return status === 'pass' ? '✓' : status === 'warn' ? '!' : '✕';
+  }
+
+  function renderReport(url, result) {
+    const scoreColor = result.pct >= 70 ? 'var(--green)' : result.pct >= 40 ? 'var(--amber)' : 'var(--red)';
+    reportBox.innerHTML = `
+      <div class="report-head">
+        <div class="site">${url}</div>
+        <div class="score-box">
+          <div class="num" style="color:${scoreColor}">${result.pct}</div>
+          <div class="label">out of 100</div>
+        </div>
+      </div>
+      ${result.items.map(i => `
+        <div class="item">
+          <div class="badge ${i.status}">${iconFor(i.status)}</div>
+          <div>
+            <div class="title">${i.label}</div>
+            <div class="detail">${i.detail}</div>
+          </div>
+        </div>
+      `).join('')}
+      <div class="cta-box">
+        <p>These are just the basics. Want a full plan to fix what's holding your site back?</p>
+        <a href="https://seozar.co/contacts" target="_blank" rel="noopener">Talk to us</a>
+      </div>
+    `;
+    reportBox.classList.add('active');
+  }
+
+  async function unlock() {
+    const email = leadEmail.value.trim();
+    if (!email || !email.includes('@')) {
+      showError('Please enter a valid email to see your report.');
+      return;
+    }
+    errorBox.classList.remove('active');
+
+    // Send lead to Google Sheet via Apps Script webhook (fire and forget)
+    if (SHEET_WEBHOOK_URL && SHEET_WEBHOOK_URL.indexOf('PASTE_') === -1) {
+      fetch(SHEET_WEBHOOK_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          website: pendingUrl,
+          score: pendingResult ? pendingResult.pct : null,
+          date: new Date().toISOString()
+        })
+      }).catch(() => {});
+    }
+
+    gate.classList.remove('active');
+    renderReport(pendingUrl, pendingResult);
+  }
+
+  scanBtn.addEventListener('click', scan);
+  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') scan(); });
+  unlockBtn.addEventListener('click', unlock);
+  leadEmail.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+})();
+</script>
+</body>
+</html>
