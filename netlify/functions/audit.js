@@ -169,21 +169,38 @@ function matchOne(html, regex) {
 }
 
 async function fetchHtml(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const res = await fetch(url, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; SEOzarAuditBot/1.0; +https://seozar.co)'
+  const maxAttempts = 2;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(url, {
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Upgrade-Insecure-Requests': '1'
+        }
+      });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error('Fetch failed with status ' + res.status);
+      return await res.text();
+    } catch (e) {
+      clearTimeout(timeout);
+      lastError = e;
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 800)); // brief pause before retrying
       }
-    });
-    if (!res.ok) throw new Error('Fetch failed with status ' + res.status);
-    return await res.text();
-  } finally {
-    clearTimeout(timeout);
+    }
   }
+
+  throw lastError;
 }
 
 async function fetchPageSpeed(url) {
