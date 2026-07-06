@@ -170,7 +170,7 @@ function matchOne(html, regex) {
 
 async function fetchHtml(url) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(url, {
       redirect: 'follow',
@@ -188,10 +188,16 @@ async function fetchHtml(url) {
 
 async function fetchPageSpeed(url) {
   const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${PAGESPEED_API_KEY}&strategy=mobile`;
-  const res = await fetch(endpoint);
-  if (!res.ok) return null;
-  const data = await res.json();
-  const scoreRaw = data?.lighthouseResult?.categories?.performance?.score;
-  if (typeof scoreRaw !== 'number') return null;
-  return Math.round(scoreRaw * 100);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 7000);
+  try {
+    const res = await fetch(endpoint, { signal: controller.signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const scoreRaw = data?.lighthouseResult?.categories?.performance?.score;
+    if (typeof scoreRaw !== 'number') return null;
+    return Math.round(scoreRaw * 100);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
