@@ -33,21 +33,21 @@ exports.handler = async function (event) {
 
     // HTTPS
     if (parsedUrl.protocol === 'https:') {
-      items.push(pass('HTTPS enabled', 'Your site loads securely — good for trust and rankings.'));
+      items.push(pass('HTTPS enabled', 'Your site loads securely — good for trust and rankings.', 'Secure'));
       score++;
     } else {
-      items.push(fail('Not using HTTPS', 'Browsers mark HTTP sites as "not secure," which can turn visitors away.'));
+      items.push(fail('Not using HTTPS', 'Browsers mark HTTP sites as "not secure," which can turn visitors away.', 'Insecure'));
     }
 
     // Title tag
     const title = matchOne(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
     if (!title) {
-      items.push(fail('Title tag missing', 'This is the headline Google shows in search results. An easy, high-impact fix.'));
+      items.push(fail('Title tag missing', 'This is the headline Google shows in search results. An easy, high-impact fix.', 'Missing'));
     } else if (title.length < 30 || title.length > 60) {
-      items.push(warn('Title tag length could improve', `"${title}" is ${title.length} characters — ideal is 30–60.`));
+      items.push(warn('Title tag length could improve', `"${title}" is ${title.length} characters — ideal is 30–60.`, `${title.length} characters`));
       score += 0.5;
     } else {
-      items.push(pass('Title tag looks good', `"${title}" (${title.length} characters)`));
+      items.push(pass('Title tag looks good', `"${title}" (${title.length} characters)`, `${title.length} characters`));
       score++;
     }
 
@@ -55,25 +55,25 @@ exports.handler = async function (event) {
     const desc = matchOne(html, /<meta\s+name=["']description["']\s+content=["']([\s\S]*?)["']\s*\/?>/i)
       || matchOne(html, /<meta\s+content=["']([\s\S]*?)["']\s+name=["']description["']\s*\/?>/i);
     if (!desc) {
-      items.push(fail('Meta description missing', 'Without this, Google writes its own snippet — usually a less compelling one.'));
+      items.push(fail('Meta description missing', 'Without this, Google writes its own snippet — usually a less compelling one.', 'Missing'));
     } else if (desc.length < 70 || desc.length > 160) {
-      items.push(warn('Meta description length could improve', `Currently ${desc.length} characters — ideal is 70–160.`));
+      items.push(warn('Meta description length could improve', `Currently ${desc.length} characters — ideal is 70–160.`, `${desc.length} characters`));
       score += 0.5;
     } else {
-      items.push(pass('Meta description looks good', `${desc.length} characters`));
+      items.push(pass('Meta description looks good', `${desc.length} characters`, `${desc.length} characters`));
       score++;
     }
 
     // H1
     const h1Matches = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/gi) || [];
     if (h1Matches.length === 0) {
-      items.push(fail('No H1 heading found', 'Every page needs one clear main heading for both readers and Google.'));
+      items.push(fail('No H1 heading found', 'Every page needs one clear main heading for both readers and Google.', 'Missing'));
     } else if (h1Matches.length > 1) {
-      items.push(warn(`${h1Matches.length} H1 tags found`, 'Having more than one main heading can confuse search engines about your page\'s topic.'));
+      items.push(warn(`${h1Matches.length} H1 tags found`, 'Having more than one main heading can confuse search engines about your page\'s topic.', `${h1Matches.length} H1 tags`));
       score += 0.5;
     } else {
       const h1Text = h1Matches[0].replace(/<[^>]+>/g, '').trim();
-      items.push(pass('Single H1 found', h1Text.slice(0, 70)));
+      items.push(pass('Single H1 found', h1Text.slice(0, 70), '1 H1 tag'));
       score++;
     }
 
@@ -81,12 +81,12 @@ exports.handler = async function (event) {
     const imgTags = html.match(/<img[^>]*>/gi) || [];
     const missingAlt = imgTags.filter(tag => !/alt\s*=\s*["'][^"']+["']/i.test(tag));
     if (imgTags.length === 0) {
-      items.push(warn('No images found', 'Not necessarily a problem, but visuals often help engagement.'));
+      items.push(warn('No images found', 'Not necessarily a problem, but visuals often help engagement.', 'No images'));
       score += 0.5;
     } else if (missingAlt.length > 0) {
-      items.push(fail(`${missingAlt.length} of ${imgTags.length} images missing alt text`, 'Alt text helps both SEO and accessibility for visually impaired visitors.'));
+      items.push(fail(`${missingAlt.length} of ${imgTags.length} images missing alt text`, 'Alt text helps both SEO and accessibility for visually impaired visitors.', `${missingAlt.length} missing`));
     } else {
-      items.push(pass('All images have alt text', `${imgTags.length} images checked.`));
+      items.push(pass('All images have alt text', `${imgTags.length} images checked.`, 'All good'));
       score++;
     }
 
@@ -100,27 +100,27 @@ exports.handler = async function (event) {
       .trim();
     const wordCount = textOnly ? textOnly.split(' ').length : 0;
     if (wordCount < 300) {
-      items.push(warn(`Only ${wordCount} words on this page`, 'Thin content can make it harder to rank for competitive search terms.'));
+      items.push(warn(`Only ${wordCount} words on this page`, 'Thin content can make it harder to rank for competitive search terms.', `${wordCount} words`));
       score += 0.5;
     } else {
-      items.push(pass(`${wordCount} words on this page`, 'Reasonable content depth for Google to work with.'));
+      items.push(pass(`${wordCount} words on this page`, 'Reasonable content depth for Google to work with.', `${wordCount} words`));
       score++;
     }
 
     // Viewport / mobile
     if (/<meta\s+name=["']viewport["']/i.test(html)) {
-      items.push(pass('Mobile viewport tag found', 'Good sign that your site is set up for mobile visitors.'));
+      items.push(pass('Mobile viewport tag found', 'Good sign that your site is set up for mobile visitors.', 'Found'));
       score++;
     } else {
-      items.push(fail('No mobile viewport tag found', 'This usually means the page isn\'t properly optimized for mobile phones.'));
+      items.push(fail('No mobile viewport tag found', 'This usually means the page isn\'t properly optimized for mobile phones.', 'Missing'));
     }
 
     // Schema / structured data
     if (/<script[^>]+type=["']application\/ld\+json["']/i.test(html)) {
-      items.push(pass('Structured data (schema) detected', 'Helps Google understand your content and can unlock richer search results.'));
+      items.push(pass('Structured data (schema) detected', 'Helps Google understand your content and can unlock richer search results.', 'Detected'));
       score++;
     } else {
-      items.push(fail('No structured data detected', 'Adding schema markup can help your listing stand out on Google.'));
+      items.push(fail('No structured data detected', 'Adding schema markup can help your listing stand out on Google.', 'Missing'));
     }
 
     // Page speed (optional — only if API key is set)
@@ -130,13 +130,13 @@ exports.handler = async function (event) {
         maxScore += 1;
         if (speed !== null) {
           if (speed >= 90) {
-            items.push(pass(`Page speed score: ${speed}/100`, 'Your site loads quickly — great for both visitors and rankings.'));
+            items.push(pass(`Page speed score: ${speed}/100`, 'Your site loads quickly — great for both visitors and rankings.', `${speed}/100`));
             score++;
           } else if (speed >= 50) {
-            items.push(warn(`Page speed score: ${speed}/100`, 'Room to improve — slow pages lose visitors before they even see your content.'));
+            items.push(warn(`Page speed score: ${speed}/100`, 'Room to improve — slow pages lose visitors before they even see your content.', `${speed}/100`));
             score += 0.5;
           } else {
-            items.push(fail(`Page speed score: ${speed}/100`, 'Your site is loading slowly. Most visitors leave before a slow page even finishes loading.'));
+            items.push(fail(`Page speed score: ${speed}/100`, 'Your site is loading slowly. Most visitors leave before a slow page even finishes loading.', `${speed}/100`));
           }
         }
       } catch (e) {
@@ -159,9 +159,9 @@ exports.handler = async function (event) {
   }
 };
 
-function pass(label, detail) { return { status: 'pass', label, detail }; }
-function warn(label, detail) { return { status: 'warn', label, detail }; }
-function fail(label, detail) { return { status: 'fail', label, detail }; }
+function pass(label, detail, tag) { return { status: 'pass', label, detail, tag: tag || '' }; }
+function warn(label, detail, tag) { return { status: 'warn', label, detail, tag: tag || '' }; }
+function fail(label, detail, tag) { return { status: 'fail', label, detail, tag: tag || '' }; }
 
 function matchOne(html, regex) {
   const m = html.match(regex);
