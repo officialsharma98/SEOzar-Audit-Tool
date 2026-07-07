@@ -32,7 +32,6 @@
     padding: 48px 24px 80px;
   }
 
-  /* Header */
   .eyebrow {
     display: inline-flex;
     align-items: center;
@@ -65,7 +64,6 @@
     margin: 0 0 32px;
   }
 
-  /* Form */
   .form-row {
     display: flex;
     gap: 10px;
@@ -101,7 +99,6 @@
     margin-top: 10px;
   }
 
-  /* Loading */
   #loading {
     display: none;
     margin-top: 36px;
@@ -132,7 +129,6 @@
     100% { transform: translateX(250%); }
   }
 
-  /* Error */
   #error {
     display: none;
     margin-top: 24px;
@@ -145,7 +141,6 @@
   }
   #error.active { display: block; }
 
-  /* Lead capture gate */
   #gate {
     display: none;
     margin-top: 32px;
@@ -157,10 +152,13 @@
   #gate h3 { margin: 0 0 6px; font-size: 18px; }
   #gate p { margin: 0 0 16px; color: var(--gray); font-size: 14px; line-height: 1.5; }
   #gate .form-row input { flex: 1; min-width: 160px; }
-  #gate .form-row button { background: var(--ink); }
-  #gate .form-row button:hover { background: #000; }
+  #gate .form-row button {
+    background: var(--green);
+    white-space: nowrap;
+    padding: 15px 24px;
+  }
+  #gate .form-row button:hover { background: var(--green-dark); }
 
-  /* Report */
   #report {
     display: none;
     margin-top: 32px;
@@ -280,9 +278,8 @@
 
 <script>
 (function() {
-  // ---- CONFIG: fill these in ----
-  const FUNCTION_URL = '/.netlify/functions/audit';   // Netlify function endpoint
-  const SHEET_WEBHOOK_URL = 'PASTE_YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+  const FUNCTION_URL = '/.netlify/functions/audit';
+  const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwMHY6Us6ZSXPS2r-pO32n3QuDdh-lZdShyki4UUUj26_kPfB6e5lXURjhlRzV5ssIN/exec';
 
   const urlInput = document.getElementById('url-input');
   const scanBtn = document.getElementById('scan-btn');
@@ -399,13 +396,13 @@
 
   async function unlock() {
     const email = leadEmail.value.trim();
-    if (!email || !email.includes('@')) {
-      showError('Please enter a valid email to see your report.');
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!email || !emailPattern.test(email)) {
+      showError('Please enter a valid email address (like name@example.com) to see your report.');
       return;
     }
     errorBox.classList.remove('active');
 
-    // Send lead to Google Sheet via Apps Script webhook (fire and forget)
     if (SHEET_WEBHOOK_URL && SHEET_WEBHOOK_URL.indexOf('PASTE_') === -1) {
       fetch(SHEET_WEBHOOK_URL, {
         method: 'POST',
