@@ -25,16 +25,22 @@
     --sans: 'Segoe UI', -apple-system, Roboto, Arial, sans-serif;
   }
   * { box-sizing: border-box; }
-  body {
+  html, body {
+    width: 100%;
     margin: 0;
+    padding: 0;
+  }
+  body {
     font-family: var(--sans);
     color: var(--ink);
     background: var(--paper);
   }
   .wrap {
     max-width: 900px;
+    width: 100%;
     margin: 0 auto;
     padding: 48px 24px 80px;
+    box-sizing: border-box;
   }
 
   .eyebrow {
@@ -521,6 +527,7 @@
 <body>
 <div class="wrap">
 
+  <div id="hero-section">
   <div class="eyebrow">Free Audit Tool by SEOzar</div>
   <h1>Audit Your Website for Hidden SEO Traffic.</h1>
   <p class="lede">
@@ -579,6 +586,8 @@
     </div>
   </div>
 
+  </div>
+
   <div id="error"></div>
 
   <div id="loading">
@@ -606,6 +615,7 @@
 
   const urlInput = document.getElementById('url-input');
   const scanBtn = document.getElementById('scan-btn');
+  const heroSection = document.getElementById('hero-section');
   const loading = document.getElementById('loading');
   const loadingText = document.getElementById('loading-text');
   const errorBox = document.getElementById('error');
@@ -652,7 +662,11 @@
 
     scanBtn.disabled = true;
     scanBtn.textContent = 'Checking…';
+    heroSection.style.display = 'none';
     loading.classList.add('active');
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 50);
 
     let i = 0;
     loadingText.textContent = steps[0];
@@ -679,6 +693,7 @@
     } catch (e) {
       clearInterval(timer);
       loading.classList.remove('active');
+      heroSection.style.display = '';
       showError('We couldn\'t check that site just now. It may be blocking automated checks, or the site may be temporarily down. Please try again in a moment.');
     } finally {
       scanBtn.disabled = false;
@@ -824,6 +839,7 @@
     document.getElementById('audit-another-btn').addEventListener('click', () => {
       reportBox.classList.remove('active');
       reportBox.innerHTML = '';
+      heroSection.style.display = '';
       urlInput.value = '';
       urlInput.focus();
       window.scrollTo({ top: 0, behavior: 'smooth' });
