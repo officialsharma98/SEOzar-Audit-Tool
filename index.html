@@ -654,9 +654,11 @@
  let auditMode = "seo";
 
 function getFunctionURL() {
+    const base = "https://sprightly-custard-388591.netlify.app";
+
     return auditMode === "seo"
-        ? "/.netlify/functions/audit"
-        : "/.netlify/functions/ai-audit";
+        ? `${base}/.netlify/functions/audit`
+        : `${base}/.netlify/functions/ai-audit`;
 }
   const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwMHY6Us6ZSXPS2r-pO32n3QuDdh-lZdShyki4UUUj26_kPfB6e5lXURjhlRzV5ssIN/exec';
 
