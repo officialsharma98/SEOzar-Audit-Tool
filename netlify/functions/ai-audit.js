@@ -445,15 +445,14 @@ return {
 };
 
 } catch (e) {
+  console.error("AI AUDIT ERROR:", e);
 
-return {
+  return {
     statusCode: 500,
     body: JSON.stringify({
-        success: false,
-        error: e.message
+      success: false,
+      error: e.message,
+      stack: e.stack
     })
-};
-
+  };
 }
-
-};
