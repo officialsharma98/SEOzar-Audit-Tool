@@ -528,12 +528,26 @@
 <div class="wrap">
 
   <div id="hero-section">
-  <div class="eyebrow">Free Audit Tool by SEOzar</div>
-  <h1>Audit Your Website for Hidden SEO Traffic.</h1>
-  <p class="lede">
+<div class="eyebrow">Free Audit Tool by SEOzar</div>
+
+<div class="audit-toggle">
+    <button id="seo-mode" class="audit-tab active">
+        🔍 Search Engine Audit
+    </button>
+
+    <button id="ai-mode" class="audit-tab">
+        🤖 AI Audit
+    </button>
+</div>
+
+<h1 id="audit-title">
+    Audit Your Website for Hidden SEO Traffic.
+</h1>
+
+<p class="lede" id="audit-description">
     Drop your URL below to run an audit report. Instantly uncover hidden SEO gaps and get a
     clear, actionable roadmap to beat your competitors to the top of SERP.
-  </p>
+</p>
 
   <div class="form-row">
     <input type="text" id="url-input" placeholder="yourwebsite.com" />
@@ -610,7 +624,13 @@
 
 <script>
 (function() {
-  const FUNCTION_URL = '/.netlify/functions/audit';
+ let auditMode = "seo";
+
+function getFunctionURL() {
+    return auditMode === "seo"
+        ? "/.netlify/functions/audit"
+        : "/.netlify/functions/ai-audit";
+}
   const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwMHY6Us6ZSXPS2r-pO32n3QuDdh-lZdShyki4UUUj26_kPfB6e5lXURjhlRzV5ssIN/exec';
 
   const urlInput = document.getElementById('url-input');
@@ -676,7 +696,7 @@
     }, 500);
 
     try {
-      const res = await fetch(FUNCTION_URL, {
+     const res = await fetch(getFunctionURL(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: parsed.href })
@@ -888,6 +908,39 @@
   urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') scan(); });
   unlockBtn.addEventListener('click', unlock);
   leadEmail.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+  const seoBtn = document.getElementById("seo-mode");
+const aiBtn = document.getElementById("ai-mode");
+
+const auditTitle = document.getElementById("audit-title");
+const auditDescription = document.getElementById("audit-description");
+
+seoBtn.addEventListener("click", () => {
+
+    auditMode = "seo";
+
+    seoBtn.classList.add("active");
+    aiBtn.classList.remove("active");
+
+    auditTitle.textContent = "Audit Your Website for Hidden SEO Traffic.";
+
+    auditDescription.textContent =
+        "Drop your URL below to run an audit report. Instantly uncover hidden SEO gaps and get a clear, actionable roadmap to beat your competitors to the top of SERP.";
+
+});
+
+aiBtn.addEventListener("click", () => {
+
+    auditMode = "ai";
+
+    aiBtn.classList.add("active");
+    seoBtn.classList.remove("active");
+
+    auditTitle.textContent = "Audit Your Website for AI Visibility.";
+
+    auditDescription.textContent =
+        "Analyze how ChatGPT, Claude, Gemini and Perplexity understand your website and discover practical improvements to become AI-ready.";
+
+});
 })();
 </script>
 </body>
