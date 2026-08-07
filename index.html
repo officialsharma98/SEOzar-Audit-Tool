@@ -761,10 +761,10 @@ function getFunctionURL() {
   }
 
   function renderReport(url, result) {
-    const meta = scoreMeta(result.pct);
+    const meta = scoreMeta(result.score);
     const r = 74;
     const circumference = 2 * Math.PI * r;
-    const offset = circumference - (result.pct / 100) * circumference;
+    const offset = circumference - (result.score / 100) * circumference;
 
     const passedCount = result.items.filter(i => i.status === 'pass').length;
     const warnCount = result.items.filter(i => i.status === 'warn').length;
@@ -806,7 +806,7 @@ function getFunctionURL() {
               stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" />
           </svg>
           <div class="gauge-center">
-            <div class="gauge-num" style="color:${meta.color}">${result.pct}</div>
+            <div class="gauge-num" style="color:${meta.color}">${result.score}</div>
             <div class="gauge-of">out of 100</div>
             <span class="gauge-tag" style="background:${meta.tagBg};color:${meta.tagColor}">${meta.label}</span>
           </div>
@@ -828,15 +828,15 @@ function getFunctionURL() {
         </div>
         <div class="stat-card">
           <div class="stat-icon score">↗</div>
-          <div><strong>${result.pct}/100</strong><small>SEO Score</small></div>
+          <div><strong>${result.score}/100</strong><small>SEO Score</small></div>
         </div>
       </div>
 
       <div class="overview-panel">
         <div class="overview-side">
-          <div class="trophy">${result.pct >= 70 ? '🏆' : result.pct >= 40 ? '🔧' : '⚠️'}</div>
-          <strong>${result.pct >= 70 ? 'Good Work!' : result.pct >= 40 ? 'Almost There' : 'Needs Attention'}</strong>
-          <p>${result.pct >= 70 ? 'Your website is performing well. Focus on the improvements to make it even better.' : 'Your site has real opportunities to improve. Fixing the items below can meaningfully boost your rankings.'}</p>
+         <div class="trophy">${result.score >= 70 ? '🏆' : result.score >= 40 ? '🥈' : '⚠️'}</div>
+<strong>${result.score >= 70 ? 'Good Work!' : result.score >= 40 ? 'Almost There' : 'Needs Attention'}</strong>
+<p>${result.score >= 70 ? 'Your website is performing well. Focus on the improvements to make it even better.' : 'Your site has real opportunities to improve. Fixing the items below can meaningfully boost your rankings.'}</p>
         </div>
         <div class="overview-list">
           <h3>Audit Overview</h3>
@@ -922,7 +922,7 @@ function getFunctionURL() {
         body: JSON.stringify({
           email: email,
           website: pendingUrl,
-          score: pendingResult ? pendingResult.pct : null,
+          score: pendingResult ? pendingResult.score : null,
           date: new Date().toISOString()
         })
       }).catch(() => {});
