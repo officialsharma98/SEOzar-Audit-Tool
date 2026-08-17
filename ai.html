@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Free AI Audit Tool | SEOzar</title>
+<meta name="description" content="Check if ChatGPT, Claude, and Perplexity can read and understand your website. Free AI-readiness audit from SEOzar — Best AI SEO Agency in Delhi NCR & India." />
+<style>
+  :root {
+    --green: #1E8E3E;
+    --green-dark: #17692F;
+    --green-soft: #EAF7EE;
+    --ink: #14171F;
+    --gray: #5B6270;
+    --gray-soft: #9AA1AC;
+    --line: #E4E7EC;
+    --paper: #FFFFFF;
+    --bg-soft: #F1FBF3;
+    --amber: #C8862B;
+    --amber-soft: #FBF1E1;
+    --red: #C0392B;
+    --red-soft: #FDECEA;
+    --blue-soft: #EEF2FF;
+    --blue: #4F5FDB;
+    --sans: 'Segoe UI', -apple-system, Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; margin: 0; padding: 0; }
+  body { font-family: var(--sans); color: var(--ink); background: var(--paper); }
+  .wrap { max-width: 900px; width: 100%; margin: 0 auto; padding: 48px 24px 80px; box-sizing: border-box; }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; color: var(--green);
+    letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;
+  }
+  .eyebrow::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  h1 { font-size: 34px; line-height: 1.2; margin: 0 0 14px; letter-spacing: -0.01em; }
+  .lede { font-size: 16px; line-height: 1.6; color: var(--gray); max-width: 60ch; margin: 0 0 32px; }
+
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  #url-input {
+    flex: 1; min-width: 220px; padding: 15px 18px; border: 1.5px solid var(--line);
+    border-radius: 999px; font-size: 15px; outline: none; color: var(--ink);
+  }
+  #url-input:focus { border-color: var(--green); }
+  #scan-btn {
+    padding: 15px 28px; border: none; border-radius: 999px; background: var(--green);
+    color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  }
+  #scan-btn:hover { background: var(--green-dark); }
+  #scan-btn:disabled { background: #A9C9B2; cursor: default; }
+  .helper-note { font-size: 12.5px; color: var(--gray-soft); margin-top: 10px; }
+
+  #loading {
+    display: none; margin-top: 36px; padding: 20px; border-radius: 16px;
+    background: var(--bg-soft); font-size: 14px; color: var(--gray);
+  }
+  #loading.active { display: block; }
+  .bar { height: 4px; width: 100%; background: #DCEFDF; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+  .bar-fill { height: 100%; width: 40%; background: var(--green); border-radius: 4px; animation: slide 1.1s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+
+  #error {
+    display: none; margin-top: 24px; padding: 16px 18px; border-radius: 12px;
+    background: var(--red-soft); color: var(--red); font-size: 14px; line-height: 1.5;
+  }
+  #error.active { display: block; }
+
+  #gate { display: none; margin-top: 32px; padding: 24px; border: 1.5px solid var(--line); border-radius: 16px; }
+  #gate.active { display: block; }
+  #gate h3 { margin: 0 0 6px; font-size: 18px; }
+  #gate p { margin: 0 0 16px; color: var(--gray); font-size: 14px; line-height: 1.5; }
+  #gate .form-row input { flex: 1; min-width: 160px; }
+  #gate .form-row button { background: var(--green); white-space: nowrap; padding: 15px 24px; }
+  #gate .form-row button:hover { background: var(--green-dark); }
+
+  .trust-section {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+    margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line);
+  }
+  .trust-label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--gray-soft); margin-bottom: 14px; }
+  .trust-list { display: flex; flex-direction: column; gap: 12px; }
+  .trust-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .trust-item { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; color: var(--ink); }
+  .trust-item .ic {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--green-soft); color: var(--green);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;
+  }
+  @media (max-width: 640px) {
+    .trust-section { grid-template-columns: 1fr; }
+    .trust-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  .preview-card {
+    display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px;
+    margin-top: 28px; padding: 20px; background: var(--bg-soft); border-radius: 16px;
+  }
+  .preview-overview { background: #fff; border-radius: 12px; padding: 16px; }
+  .preview-overview .po-title { font-size: 12.5px; font-weight: 700; margin-bottom: 3px; }
+  .preview-overview .po-sub { font-size: 11px; color: var(--gray-soft); margin-bottom: 12px; }
+  .preview-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .preview-row .pr-icon {
+    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #fff;
+  }
+  .preview-row .pr-icon.pass { background: var(--green); }
+  .preview-row .pr-icon.warn { background: var(--amber); }
+  .preview-row .pr-icon.fail { background: var(--red); }
+  .preview-row .pr-bar { height: 8px; border-radius: 4px; background: var(--line); flex: 1; }
+  .preview-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .preview-stat { background: #fff; border-radius: 12px; padding: 14px; text-align: left; }
+  .preview-stat .ps-num { font-size: 20px; font-weight: 800; }
+  .preview-stat .ps-num.pass { color: var(--green); }
+  .preview-stat .ps-num.warn { color: var(--amber); }
+  .preview-stat .ps-num.fail { color: var(--red); }
+  .preview-stat .ps-num.score { color: var(--blue); }
+  .preview-stat .ps-label { font-size: 10.5px; color: var(--gray-soft); }
+  .preview-cta {
+    grid-column: 1 / -1; background: #fff; border-radius: 12px; padding: 16px 18px;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .preview-cta strong { font-size: 15px; }
+  .preview-cta strong .accent { color: var(--green); }
+  .preview-cta a {
+    background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
+    font-size: 13px; padding: 11px 20px; border-radius: 999px; white-space: nowrap;
+  }
+  .preview-cta a:hover { background: var(--green-dark); }
+  @media (max-width: 640px) {
+    .preview-card { grid-template-columns: 1fr; }
+    .preview-stats { grid-template-columns: 1fr 1fr; }
+  }
+
+  #report { display: none; margin-top: 40px; }
+  #report.active { display: block; animation: rise 0.35s ease; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .report-topbar {
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+    padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 28px;
+  }
+  .report-brand { display: flex; align-items: baseline; gap: 10px; }
+  .report-brand .mark { color: var(--green); font-size: 20px; }
+  .report-brand strong { font-size: 17px; letter-spacing: -0.01em; }
+  .report-brand span { font-size: 13px; color: var(--gray-soft); }
+  .report-actions { display: flex; gap: 10px; }
+  .btn-outline, .btn-solid { border-radius: 999px; padding: 10px 18px; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-outline { background: #fff; border: 1.5px solid var(--line); color: var(--ink); }
+  .btn-outline:hover { border-color: var(--gray-soft); }
+  .btn-solid { background: var(--green); border: none; color: #fff; }
+  .btn-solid:hover { background: var(--green-dark); }
+
+  .report-hero { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+  .badge-pill {
+    display: inline-block; background: var(--green-soft); color: var(--green-dark);
+    font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; margin-bottom: 12px;
+  }
+  .report-hero h2 { font-size: 26px; margin: 0 0 10px; }
+  .report-hero h2 .accent { color: var(--green); }
+  .report-hero-text p { font-size: 14.5px; color: var(--gray); line-height: 1.6; max-width: 48ch; margin: 0 0 16px; }
+  .report-url-row {
+    display: flex; align-items: center; gap: 10px; background: #fff; border: 1.5px solid var(--line);
+    border-radius: 999px; padding: 8px 8px 8px 16px; max-width: 460px;
+  }
+  .report-url-row span { font-size: 13.5px; color: var(--gray); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .report-url-row button {
+    border: none; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 600;
+    padding: 8px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  }
+  .report-url-row button:hover { background: #000; }
+
+  .gauge-wrap { position: relative; width: 168px; height: 168px; flex-shrink: 0; text-align: center; }
+  .gauge-wrap svg { transform: rotate(-90deg); }
+  .gauge-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
+  .gauge-num { font-size: 34px; font-weight: 800; line-height: 1; }
+  .gauge-of { font-size: 11px; color: var(--gray-soft); margin-top: 2px; }
+  .gauge-tag { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+
+  .stat-cards {
+    display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line);
+    border-radius: 16px; overflow: hidden; margin-bottom: 28px;
+  }
+  .stat-card { padding: 20px; display: flex; align-items: center; gap: 12px; border-right: 1px solid var(--line); }
+  .stat-card:last-child { border-right: none; }
+  .stat-icon {
+    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; flex-shrink: 0;
+  }
+  .stat-icon.pass { background: var(--green-soft); color: var(--green); }
+  .stat-icon.warn { background: var(--amber-soft); color: var(--amber); }
+  .stat-icon.fail { background: var(--red-soft); color: var(--red); }
+  .stat-icon.score { background: var(--blue-soft); color: var(--blue); }
+  .stat-card strong { display: block; font-size: 19px; line-height: 1.2; }
+  .stat-card small { font-size: 12px; color: var(--gray-soft); }
+
+  .overview-panel { display: grid; grid-template-columns: 240px 1fr; gap: 24px; margin-bottom: 28px; }
+  .overview-side { background: var(--bg-soft); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; }
+  .overview-side .trophy { font-size: 26px; margin-bottom: 8px; }
+  .overview-side strong { font-size: 14px; display: block; margin-bottom: 4px; }
+  .overview-side p { font-size: 13px; color: var(--gray); line-height: 1.5; margin: 0; }
+  .overview-list h3 { font-size: 18px; margin: 0 0 4px; }
+  .overview-list > p { font-size: 13.5px; color: var(--gray-soft); margin: 0 0 12px; }
+  .check-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .check-item:last-child { border-bottom: none; }
+  .check-left { display: flex; gap: 12px; }
+  .check-icon {
+    width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0; margin-top: 1px;
+  }
+  .check-icon.pass { background: var(--green); }
+  .check-icon.warn { background: var(--amber); }
+  .check-icon.fail { background: var(--red); }
+  .check-title { font-weight: 700; font-size: 14.5px; margin-bottom: 3px; }
+  .check-detail { font-size: 13.5px; color: var(--gray); line-height: 1.5; }
+  .check-tag { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; white-space: nowrap; height: fit-content; }
+  .check-tag.pass { background: var(--green-soft); color: var(--green-dark); }
+  .check-tag.warn { background: var(--amber-soft); color: var(--amber); }
+  .check-tag.fail { background: var(--red-soft); color: var(--red); }
+
+  .cta-banner {
+    background: var(--bg-soft); border-radius: 16px; padding: 24px; display: flex;
+    justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px;
+  }
+  .cta-banner h3 { font-size: 19px; margin: 0 0 6px; }
+  .cta-banner h3 .accent { color: var(--green); }
+  .cta-banner p { font-size: 13.5px; color: var(--gray); margin: 0; max-width: 44ch; }
+  .cta-banner a {
+    background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
+    font-size: 14px; padding: 13px 22px; border-radius: 999px; white-space: nowrap;
+  }
+  .cta-banner a:hover { background: var(--green-dark); }
+
+  .quick-wins h4 { font-size: 15px; margin: 0 0 14px; }
+  .quick-wins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 28px; }
+  .quick-win-card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .quick-win-card .qw-title { font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
+  .quick-win-card .qw-detail { font-size: 12.5px; color: var(--gray); line-height: 1.5; }
+
+  .report-footer {
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    flex-wrap: wrap; padding-top: 20px; border-top: 1px solid var(--line);
+  }
+  .report-footer .disclaimer { font-size: 12px; color: var(--gray-soft); max-width: 56ch; line-height: 1.5; }
+  .report-footer .share-btn {
+    border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px;
+    font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .report-footer .share-btn:hover { border-color: var(--gray-soft); }
+
+  @media (max-width: 720px) {
+    .stat-cards { grid-template-columns: repeat(2, 1fr); }
+    .stat-card { border-bottom: 1px solid var(--line); }
+    .overview-panel { grid-template-columns: 1fr; }
+    .report-hero { flex-direction: column; align-items: flex-start; }
+  }
+  @media (max-width: 480px) {
+    h1 { font-size: 26px; }
+    .form-row { flex-direction: column; }
+    #scan-btn { width: 100%; }
+    .stat-cards { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="hero-section">
+  <div class="eyebrow">Free AI Audit Tool by SEOzar</div>
+  <h1>Is Your Website Readable by AI?</h1>
+  <p class="lede">
+    Drop your URL below to check if ChatGPT, Claude, and Perplexity can actually read and
+    understand your site — not just whether Google can.
+  </p>
+
+  <div class="form-row">
+    <input type="text" id="url-input" placeholder="yourwebsite.com" />
+    <button id="scan-btn">Check my site 🚀</button>
+  </div>
+  <div class="helper-note">No signup needed to start. It takes about 10 seconds.</div>
+
+  <div class="trust-section">
+    <div>
+      <div class="trust-label">WHY USE SEOZAR?</div>
+      <div class="trust-list">
+        <div class="trust-item"><span class="ic">⏱</span> Instant Report (10s)</div>
+        <div class="trust-item"><span class="ic">🚫</span> No Sign-up to Start</div>
+        <div class="trust-item"><span class="ic">📊</span> Detailed, Plain-English Insights</div>
+        <div class="trust-item"><span class="ic">🤝</span> Get Free SEO Support from Our Team</div>
+      </div>
+    </div>
+    <div>
+      <div class="trust-label">WHAT YOU'LL UNCOVER</div>
+      <div class="trust-grid">
+        <div class="trust-item"><span class="ic">🤖</span> AI Crawler Access</div>
+        <div class="trust-item"><span class="ic">📋</span> llms.txt Check</div>
+        <div class="trust-item"><span class="ic">🏷</span> Structured Data</div>
+        <div class="trust-item"><span class="ic">📐</span> Heading Structure</div>
+        <div class="trust-item"><span class="ic">❓</span> FAQ Content</div>
+        <div class="trust-item"><span class="ic">📄</span> Business Clarity</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="preview-card">
+    <div class="preview-overview">
+      <div class="po-title">AI Readiness Overview</div>
+      <div class="po-sub">A snapshot of your website's AI-readiness factors</div>
+      <div class="preview-row"><span class="pr-icon pass">✓</span><span class="pr-bar" style="max-width:82%"></span></div>
+      <div class="preview-row"><span class="pr-icon pass">✓</span><span class="pr-bar" style="max-width:65%"></span></div>
+      <div class="preview-row"><span class="pr-icon warn">!</span><span class="pr-bar" style="max-width:90%"></span></div>
+      <div class="preview-row"><span class="pr-icon pass">✓</span><span class="pr-bar" style="max-width:55%"></span></div>
+      <div class="preview-row"><span class="pr-icon fail">✕</span><span class="pr-bar" style="max-width:75%"></span></div>
+    </div>
+    <div class="preview-stats">
+      <div class="preview-stat"><div class="ps-num pass">5</div><div class="ps-label">Passed Checks</div></div>
+      <div class="preview-stat"><div class="ps-num warn">2</div><div class="ps-label">Improvements</div></div>
+      <div class="preview-stat"><div class="ps-num fail">1</div><div class="ps-label">Critical Issues</div></div>
+      <div class="preview-stat"><div class="ps-num score">75/100</div><div class="ps-label">AI Readiness Score</div></div>
+    </div>
+    <div class="preview-cta">
+      <strong>Ready to fix what's <span class="accent">holding your site back</span>?</strong>
+      <a href="https://seozar.co/contacts" target="_blank" rel="noopener">Get My AI Visibility Plan →</a>
+    </div>
+  </div>
+
+  </div>
+
+  <div id="error"></div>
+
+  <div id="loading">
+    <div class="bar"><div class="bar-fill"></div></div>
+    <div id="loading-text">Reading your homepage…</div>
+  </div>
+
+  <div id="gate">
+    <h3>Your report is ready.</h3>
+    <p>Enter your email to see the full breakdown — we'll also send you a copy so you don't lose it.</p>
+    <div class="form-row">
+      <input type="email" id="lead-email" placeholder="you@business.com" />
+      <button id="unlock-btn">Show my report</button>
+    </div>
+  </div>
+
+  <div id="report"></div>
+
+</div>
+
+<script>
+(function() {
+  const FUNCTION_URL = '/.netlify/functions/ai-audit';
+  const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwMHY6Us6ZSXPS2r-pO32n3QuDdh-lZdShyki4UUUj26_kPfB6e5lXURjhlRzV5ssIN/exec';
+
+  const urlInput = document.getElementById('url-input');
+  const scanBtn = document.getElementById('scan-btn');
+  const heroSection = document.getElementById('hero-section');
+  const loading = document.getElementById('loading');
+  const loadingText = document.getElementById('loading-text');
+  const errorBox = document.getElementById('error');
+  const gate = document.getElementById('gate');
+  const unlockBtn = document.getElementById('unlock-btn');
+  const leadEmail = document.getElementById('lead-email');
+  const reportBox = document.getElementById('report');
+
+  const steps = [
+    'Reading your homepage…',
+    'Checking AI crawler access…',
+    'Looking for llms.txt…',
+    'Checking structured data & headings…',
+    'Checking FAQ content…',
+    'Putting your report together…'
+  ];
+
+  let pendingResult = null;
+  let pendingUrl = null;
+
+  function normalize(raw) {
+    let u = raw.trim();
+    if (!u) return null;
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    try { return new URL(u); } catch (e) { return null; }
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add('active');
+  }
+
+  async function scan() {
+    const parsed = normalize(urlInput.value);
+    errorBox.classList.remove('active');
+    gate.classList.remove('active');
+    reportBox.classList.remove('active');
+    reportBox.innerHTML = '';
+
+    if (!parsed) {
+      showError('That doesn\'t look like a valid website address. Try something like "example.com".');
+      return;
+    }
+
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'Checking…';
+    heroSection.style.display = 'none';
+    loading.classList.add('active');
+    setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
+
+    let i = 0;
+    loadingText.textContent = steps[0];
+    const timer = setInterval(() => {
+      i = Math.min(i + 1, steps.length - 1);
+      loadingText.textContent = steps[i];
+    }, 500);
+
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: parsed.href })
+      });
+      if (!res.ok) throw new Error('bad-response');
+      const data = await res.json();
+
+      clearInterval(timer);
+      loading.classList.remove('active');
+
+      pendingResult = data;
+      pendingUrl = parsed.href;
+      gate.classList.add('active');
+    } catch (e) {
+      clearInterval(timer);
+      loading.classList.remove('active');
+      heroSection.style.display = '';
+      showError('We couldn\'t check that site just now. It may be blocking automated checks, or the site may be temporarily down. Please try again in a moment.');
+    } finally {
+      scanBtn.disabled = false;
+      scanBtn.textContent = 'Check my site';
+    }
+  }
+
+  function iconChar(status) {
+    return status === 'pass' ? '✓' : status === 'warn' ? '!' : '✕';
+  }
+
+  function scoreMeta(pct) {
+    if (pct >= 70) return { label: 'Good', color: 'var(--green)', tagBg: 'var(--green-soft)', tagColor: 'var(--green-dark)' };
+    if (pct >= 40) return { label: 'Average', color: 'var(--amber)', tagBg: 'var(--amber-soft)', tagColor: 'var(--amber)' };
+    return { label: 'Needs Work', color: 'var(--red)', tagBg: 'var(--red-soft)', tagColor: 'var(--red)' };
+  }
+
+  function renderReport(url, result) {
+    const meta = scoreMeta(result.pct);
+    const r = 74;
+    const circumference = 2 * Math.PI * r;
+    const offset = circumference - (result.pct / 100) * circumference;
+
+    const passedCount = result.items.filter(i => i.status === 'pass').length;
+    const warnCount = result.items.filter(i => i.status === 'warn').length;
+    const failCount = result.items.filter(i => i.status === 'fail').length;
+
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    const quickWins = result.items.filter(i => i.status !== 'pass').slice(0, 3);
+
+    reportBox.innerHTML = `
+      <div class="report-topbar">
+        <div class="report-brand">
+          <span class="mark">●</span>
+          <strong>SEOZAR</strong>
+          <span>Free AI Audit Tool</span>
+        </div>
+        <div class="report-actions">
+          <button class="btn-outline" id="download-btn">Download Report</button>
+          <button class="btn-solid" id="audit-another-btn">Audit Another Site</button>
+        </div>
+      </div>
+
+      <div class="report-hero">
+        <div class="report-hero-text">
+          <span class="badge-pill">AUDIT COMPLETED · ${dateStr}</span>
+          <h2>AI Readiness Report is <span class="accent">Ready!</span> 🚀</h2>
+          <p>Here's a comprehensive overview of how readable your website is to AI systems like ChatGPT, Claude, and Perplexity — not just Google.</p>
+          <div class="report-url-row">
+            <span>${url}</span>
+            <button id="reaudit-btn">Re-audit this site</button>
+          </div>
+        </div>
+        <div class="gauge-wrap">
+          <svg width="168" height="168" viewBox="0 0 168 168">
+            <circle cx="84" cy="84" r="${r}" stroke="#E4E7EC" stroke-width="14" fill="none" />
+            <circle cx="84" cy="84" r="${r}" stroke="${meta.color}" stroke-width="14" fill="none"
+              stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" />
+          </svg>
+          <div class="gauge-center">
+            <div class="gauge-num" style="color:${meta.color}">${result.pct}</div>
+            <div class="gauge-of">out of 100</div>
+            <span class="gauge-tag" style="background:${meta.tagBg};color:${meta.tagColor}">${meta.label}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stat-cards">
+        <div class="stat-card">
+          <div class="stat-icon pass">✓</div>
+          <div><strong>${passedCount}</strong><small>Passed Checks</small></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon warn">!</div>
+          <div><strong>${warnCount}</strong><small>Improvements</small></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon fail">✕</div>
+          <div><strong>${failCount}</strong><small>Critical Issues</small></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon score">↗</div>
+          <div><strong>${result.pct}/100</strong><small>AI Readiness Score</small></div>
+        </div>
+      </div>
+
+      <div class="overview-panel">
+        <div class="overview-side">
+          <div class="trophy">${result.pct >= 70 ? '🏆' : result.pct >= 40 ? '🔧' : '⚠️'}</div>
+          <strong>${result.pct >= 70 ? 'Good Work!' : result.pct >= 40 ? 'Almost There' : 'Needs Attention'}</strong>
+          <p>${result.pct >= 70 ? 'Your website is performing well. Focus on the improvements to make it even better.' : 'Your site has real opportunities to improve. Fixing the items below can meaningfully boost your rankings.'}</p>
+        </div>
+        <div class="overview-list">
+          <h3>Audit Overview</h3>
+          <p>A summary of your website's key AI-readiness factors</p>
+          ${result.items.map(i => `
+            <div class="check-item">
+              <div class="check-left">
+                <div class="check-icon ${i.status}">${iconChar(i.status)}</div>
+                <div>
+                  <div class="check-title">${i.label}</div>
+                  <div class="check-detail">${i.detail}</div>
+                </div>
+              </div>
+              ${i.tag ? `<span class="check-tag ${i.status}">${i.tag}</span>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="cta-banner">
+        <div>
+          <h3>Ready to fix what's <span class="accent">holding your AI visibility back</span>?</h3>
+          <p>Get a personalized AI-visibility roadmap from our experts and get found by AI search tools too.</p>
+        </div>
+        <a href="https://seozar.co/contacts" target="_blank" rel="noopener">Get My AI Visibility Plan →</a>
+      </div>
+
+      ${quickWins.length ? `
+      <div class="quick-wins">
+        <h4>💡 Quick Wins for You</h4>
+        <div class="quick-wins-grid">
+          ${quickWins.map(q => `
+            <div class="quick-win-card">
+              <div class="qw-title">${q.label}</div>
+              <div class="qw-detail">${q.detail}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+
+      <div class="report-footer">
+        <div class="disclaimer">⚠ Disclaimer: This is an automated readability check — it doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
+        <button class="share-btn" id="copy-link-btn">Copy report link</button>
+      </div>
+    `;
+    reportBox.classList.add('active');
+
+    document.getElementById('download-btn').addEventListener('click', () => window.print());
+    document.getElementById('audit-another-btn').addEventListener('click', () => {
+      reportBox.classList.remove('active');
+      reportBox.innerHTML = '';
+      heroSection.style.display = '';
+      urlInput.value = '';
+      urlInput.focus();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    document.getElementById('reaudit-btn').addEventListener('click', () => {
+      urlInput.value = url;
+      scan();
+    });
+    document.getElementById('copy-link-btn').addEventListener('click', (e) => {
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        e.target.textContent = 'Copied!';
+        setTimeout(() => { e.target.textContent = 'Copy report link'; }, 1800);
+      });
+    });
+  }
+
+  async function unlock() {
+    const email = leadEmail.value.trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!email || !emailPattern.test(email)) {
+      showError('Please enter a valid email address (like name@example.com) to see your report.');
+      return;
+    }
+    errorBox.classList.remove('active');
+
+    if (SHEET_WEBHOOK_URL && SHEET_WEBHOOK_URL.indexOf('PASTE_') === -1) {
+      fetch(SHEET_WEBHOOK_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email,
+          website: pendingUrl,
+          score: pendingResult ? pendingResult.pct : null,
+          date: new Date().toISOString()
+        })
+      }).catch(() => {});
+    }
+
+    gate.classList.remove('active');
+    renderReport(pendingUrl, pendingResult);
+    window.scrollTo({ top: reportBox.offsetTop - 20, behavior: 'smooth' });
+  }
+
+  scanBtn.addEventListener('click', scan);
+  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') scan(); });
+  unlockBtn.addEventListener('click', unlock);
+  leadEmail.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+})();
+</script>
+</body>
+</html>
