@@ -736,7 +736,21 @@ function getFunctionURL() {
       clearInterval(timer);
       loading.classList.remove('active');
 
-      pendingResult = data;
+      // Normalize field names between the two backends:
+      // SEO backend (audit.js) returns { score, items: [{ name, details, status, tag }] }
+      // AI backend (ai-audit.js) returns { pct, items: [{ label, detail, status, tag }] }
+      // Standardize to one shape so the rest of the UI doesn't care which mode ran.
+      pendingResult = {
+        score: data.score !== undefined ? data.score : data.pct,
+        items: (data.items || []).map(function (it) {
+          return {
+            name: it.name || it.label,
+            details: it.details || it.detail,
+            status: it.status,
+            tag: it.tag
+          };
+        })
+      };
       pendingUrl = parsed.href;
       gate.classList.add('active');
     } catch (e) {
@@ -870,8 +884,8 @@ function getFunctionURL() {
         <div class="quick-wins-grid">
           ${quickWins.map(q => `
             <div class="quick-win-card">
-              <div class="qw-title">${q.label}</div>
-              <div class="qw-detail">${q.detail}</div>
+              <div class="qw-title">${q.name}</div>
+              <div class="qw-detail">${q.details}</div>
             </div>
           `).join('')}
         </div>
