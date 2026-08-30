@@ -3,8 +3,8 @@
 // Returns backward-compatible shape: { pct, items:[{status,label,detail,tag}], ... }
 // plus category + weight on each item, a categories[] summary, and a site{} snapshot.
 
-// ⚠ Prefer the Netlify env var. Only hardcode for local testing, and NEVER commit a key to a public repo.
-const PAGESPEED_API_KEY = process.env.PAGESPEED_API_KEY || 'PASTE_YOUR_API_KEY_HERE';
+// NOTE: Page speed lives in its own function (pagespeed.js) so the main audit
+// returns instantly and the slow PageSpeed call gets the full time budget.
 
 const UA = 'SEOZAR-Audit/1.0 (+https://seozar.co)';
 
@@ -91,46 +91,6 @@ function scorePct(items) {
   return max ? Math.round((got / max) * 100) : 0;
 }
 
-/* ---------------- PageSpeed ---------------- */
-
-async function runPageSpeed(url) {
-  if (!PAGESPEED_API_KEY || PAGESPEED_API_KEY === 'PASTE_YOUR_API_KEY_HERE') {
-    return [skip({ category: 'performance', label: 'Page speed', detail: 'Speed check not configured.', tag: 'Skipped', weight: 4 })];
-  }
-  const api = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=performance&key=${PAGESPEED_API_KEY}`;
-  const res = await fetchWithTimeout(api, { timeout: 8000 });
-  if (!res.ok || !res.body) {
-    return [skip({ category: 'performance', label: 'Page speed', detail: "Couldn't measure speed this time (the check timed out).", tag: 'N/A', weight: 4 })];
-  }
-  let data;
-  try { data = JSON.parse(res.body); } catch { return [skip({ category: 'performance', label: 'Page speed', detail: "Couldn't read the speed result.", tag: 'N/A', weight: 4 })]; }
-
-  const lh = data.lighthouseResult || {};
-  const score = lh.categories && lh.categories.performance ? lh.categories.performance.score : null; // 0..1
-  const a = lh.audits || {};
-  const lcp = a['largest-contentful-paint'] && a['largest-contentful-paint'].displayValue;
-  const cls = a['cumulative-layout-shift'] && a['cumulative-layout-shift'].displayValue;
-  const inp = (a['interaction-to-next-paint'] && a['interaction-to-next-paint'].displayValue)
-    || (a['total-blocking-time'] && a['total-blocking-time'].displayValue);
-
-  const items = [];
-  if (score == null) {
-    items.push(skip({ category: 'performance', label: 'Page speed (mobile)', detail: 'No performance score returned.', tag: 'N/A', weight: 4 }));
-  } else {
-    const pct = Math.round(score * 100);
-    const s = score >= 0.9 ? 'pass' : score >= 0.5 ? 'warn' : 'fail';
-    items.push({ status: s, category: 'performance', label: 'Page speed (mobile)',
-      detail: s === 'pass' ? 'Your page loads fast on mobile — good for rankings.' : 'Mobile performance needs work; slow pages lose rankings and visitors.',
-      tag: `${pct}/100`, weight: 4 });
-  }
-  const cwv = [lcp && `LCP ${lcp}`, cls && `CLS ${cls}`, inp && `INP ${inp}`].filter(Boolean).join(' · ');
-  if (cwv) {
-    items.push({ status: 'pass', category: 'performance', label: 'Core Web Vitals',
-      detail: 'Google\'s user-experience metrics (loading, stability, responsiveness).', tag: cwv, weight: 3, informational: true });
-  }
-  return items;
-}
-
 /* ---------------- main audit ---------------- */
 
 async function audit(rawUrl) {
@@ -138,12 +98,11 @@ async function audit(rawUrl) {
   const origin = `${target.protocol}//${target.host}`;
 
   // fire everything in parallel so total time ≈ the slowest single call
-  const [pageR, robotsR, sitemapR, httpR, psItems] = await Promise.all([
+  const [pageR, robotsR, sitemapR, httpR] = await Promise.all([
     fetchWithTimeout(target.href, { timeout: 8000 }),
     fetchWithTimeout(origin + '/robots.txt', { timeout: 4000 }),
     fetchWithTimeout(origin + '/sitemap.xml', { timeout: 4000 }),
     target.protocol === 'https:' ? fetchWithTimeout('http://' + target.host, { timeout: 4000, method: 'HEAD' }) : Promise.resolve({ ok: false }),
-    runPageSpeed(target.href),
   ]);
 
   if (!pageR.ok || !pageR.body) {
@@ -254,9 +213,6 @@ async function audit(rawUrl) {
     items.push(warn({ category: 'technical', label: 'No sitemap found', detail: 'Add /sitemap.xml so Google can discover all your pages.', tag: 'Missing', weight: 2 }));
   }
 
-  /* --- PERFORMANCE (PageSpeed) --- */
-  for (const it of psItems) items.push(it);
-
   /* ---------------- assemble ---------------- */
   const scored = items.filter(i => !i.informational);
   const cats = [
@@ -264,7 +220,6 @@ async function audit(rawUrl) {
     ['onpage', 'On-Page'],
     ['content', 'Content'],
     ['schema', 'Structured Data'],
-    ['performance', 'Performance'],
   ];
   const categories = cats.map(([key, label]) => {
     const catItems = scored.filter(i => i.category === key);
