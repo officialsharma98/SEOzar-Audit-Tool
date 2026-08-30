@@ -5,16 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Free AI Audit Tool | SEOzar</title>
 <meta name="description" content="Check if ChatGPT, Claude, and Perplexity can read and understand your website. Free AI-readiness audit from SEOzar — Best AI SEO Agency in Delhi NCR & India." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --green: #1E8E3E;
     --green-dark: #17692F;
     --green-soft: #EAF7EE;
     --ink: #14171F;
+    --ink-soft: #5B6270;
     --gray: #5B6270;
     --gray-soft: #9AA1AC;
     --line: #E4E7EC;
+    --line-soft: #EFEEEA;
     --paper: #FFFFFF;
+    --canvas: #F4F6F3;
     --bg-soft: #F1FBF3;
     --amber: #C8862B;
     --amber-soft: #FBF1E1;
@@ -22,31 +28,36 @@
     --red-soft: #FDECEA;
     --blue-soft: #EEF2FF;
     --blue: #4F5FDB;
-    --sans: 'Segoe UI', -apple-system, Roboto, Arial, sans-serif;
+    --display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+    --body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Space Mono', ui-monospace, monospace;
+    --sans: var(--body);
   }
   * { box-sizing: border-box; }
   html, body { width: 100%; margin: 0; padding: 0; }
-  body { font-family: var(--sans); color: var(--ink); background: var(--paper); }
+  body { font-family: var(--body); color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
   .wrap { max-width: 900px; width: 100%; margin: 0 auto; padding: 48px 24px 80px; box-sizing: border-box; }
 
+  /* ---------- Hero / marketing ---------- */
   .eyebrow {
     display: inline-flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 700; color: var(--green);
-    letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;
+    font-family: var(--mono);
+    font-size: 12px; font-weight: 700; color: var(--green);
+    letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px;
   }
-  .eyebrow::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-  h1 { font-size: 34px; line-height: 1.2; margin: 0 0 14px; letter-spacing: -0.01em; }
+  .eyebrow::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px var(--green-soft); }
+  h1 { font-family: var(--display); font-weight: 600; font-size: 36px; line-height: 1.15; margin: 0 0 14px; letter-spacing: -0.015em; }
   .lede { font-size: 16px; line-height: 1.6; color: var(--gray); max-width: 60ch; margin: 0 0 32px; }
 
   .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
   #url-input {
     flex: 1; min-width: 220px; padding: 15px 18px; border: 1.5px solid var(--line);
-    border-radius: 999px; font-size: 15px; outline: none; color: var(--ink);
+    border-radius: 12px; font-size: 15px; font-family: var(--mono); outline: none; color: var(--ink);
   }
   #url-input:focus { border-color: var(--green); }
   #scan-btn {
-    padding: 15px 28px; border: none; border-radius: 999px; background: var(--green);
-    color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    padding: 15px 28px; border: none; border-radius: 12px; background: var(--green);
+    color: #fff; font-size: 15px; font-weight: 700; font-family: var(--display); cursor: pointer; white-space: nowrap;
   }
   #scan-btn:hover { background: var(--green-dark); }
   #scan-btn:disabled { background: #A9C9B2; cursor: default; }
@@ -54,7 +65,7 @@
 
   #loading {
     display: none; margin-top: 36px; padding: 20px; border-radius: 16px;
-    background: var(--bg-soft); font-size: 14px; color: var(--gray);
+    background: var(--bg-soft); font-size: 14px; color: var(--gray); font-family: var(--mono);
   }
   #loading.active { display: block; }
   .bar { height: 4px; width: 100%; background: #DCEFDF; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
@@ -69,17 +80,18 @@
 
   #gate { display: none; margin-top: 32px; padding: 24px; border: 1.5px solid var(--line); border-radius: 16px; }
   #gate.active { display: block; }
-  #gate h3 { margin: 0 0 6px; font-size: 18px; }
+  #gate h3 { font-family: var(--display); font-weight: 600; margin: 0 0 6px; font-size: 18px; }
   #gate p { margin: 0 0 16px; color: var(--gray); font-size: 14px; line-height: 1.5; }
-  #gate .form-row input { flex: 1; min-width: 160px; }
-  #gate .form-row button { background: var(--green); white-space: nowrap; padding: 15px 24px; }
+  #gate .form-row input { flex: 1; min-width: 160px; padding: 15px 18px; border: 1.5px solid var(--line); border-radius: 12px; font-size: 15px; font-family: var(--body); outline: none; }
+  #gate .form-row input:focus { border-color: var(--green); }
+  #gate .form-row button { background: var(--green); color:#fff; border:none; border-radius:12px; font-family: var(--display); font-weight:700; cursor:pointer; white-space: nowrap; padding: 15px 24px; }
   #gate .form-row button:hover { background: var(--green-dark); }
 
   .trust-section {
     display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
     margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line);
   }
-  .trust-label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--gray-soft); margin-bottom: 14px; }
+  .trust-label { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--gray-soft); margin-bottom: 14px; }
   .trust-list { display: flex; flex-direction: column; gap: 12px; }
   .trust-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .trust-item { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; color: var(--ink); }
@@ -97,7 +109,7 @@
     margin-top: 28px; padding: 20px; background: var(--bg-soft); border-radius: 16px;
   }
   .preview-overview { background: #fff; border-radius: 12px; padding: 16px; }
-  .preview-overview .po-title { font-size: 12.5px; font-weight: 700; margin-bottom: 3px; }
+  .preview-overview .po-title { font-family: var(--display); font-size: 13px; font-weight: 600; margin-bottom: 3px; }
   .preview-overview .po-sub { font-size: 11px; color: var(--gray-soft); margin-bottom: 12px; }
   .preview-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
   .preview-row .pr-icon {
@@ -110,7 +122,7 @@
   .preview-row .pr-bar { height: 8px; border-radius: 4px; background: var(--line); flex: 1; }
   .preview-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .preview-stat { background: #fff; border-radius: 12px; padding: 14px; text-align: left; }
-  .preview-stat .ps-num { font-size: 20px; font-weight: 800; }
+  .preview-stat .ps-num { font-family: var(--display); font-size: 22px; font-weight: 700; }
   .preview-stat .ps-num.pass { color: var(--green); }
   .preview-stat .ps-num.warn { color: var(--amber); }
   .preview-stat .ps-num.fail { color: var(--red); }
@@ -123,7 +135,7 @@
   .preview-cta strong { font-size: 15px; }
   .preview-cta strong .accent { color: var(--green); }
   .preview-cta a {
-    background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
+    background: var(--green); color: #fff; text-decoration: none; font-weight: 700; font-family: var(--display);
     font-size: 13px; padding: 11px 20px; border-radius: 999px; white-space: nowrap;
   }
   .preview-cta a:hover { background: var(--green-dark); }
@@ -132,6 +144,7 @@
     .preview-stats { grid-template-columns: 1fr 1fr; }
   }
 
+  /* ---------- Report ---------- */
   #report { display: none; margin-top: 40px; }
   #report.active { display: block; animation: rise 0.35s ease; }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -140,42 +153,56 @@
     display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
     padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 28px;
   }
-  .report-brand { display: flex; align-items: baseline; gap: 10px; }
-  .report-brand .mark { color: var(--green); font-size: 20px; }
-  .report-brand strong { font-size: 17px; letter-spacing: -0.01em; }
-  .report-brand span { font-size: 13px; color: var(--gray-soft); }
+  .report-brand { display: flex; align-items: center; gap: 10px; }
+  .report-brand .mark { width:11px; height:11px; border-radius:50%; background: var(--green); box-shadow:0 0 0 4px var(--green-soft); }
+  .report-brand strong { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: 0.01em; }
+  .report-brand span { font-size: 13px; color: var(--gray-soft); border-left:1px solid var(--line); padding-left:10px; }
   .report-actions { display: flex; gap: 10px; }
-  .btn-outline, .btn-solid { border-radius: 999px; padding: 10px 18px; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-outline, .btn-solid { border-radius: 10px; padding: 10px 18px; font-size: 13.5px; font-weight: 600; font-family: var(--display); cursor: pointer; white-space: nowrap; }
   .btn-outline { background: #fff; border: 1.5px solid var(--line); color: var(--ink); }
   .btn-outline:hover { border-color: var(--gray-soft); }
   .btn-solid { background: var(--green); border: none; color: #fff; }
   .btn-solid:hover { background: var(--green-dark); }
 
-  .report-hero { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
-  .badge-pill {
-    display: inline-block; background: var(--green-soft); color: var(--green-dark);
-    font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; margin-bottom: 12px;
+  .report-hero {
+    display: flex; justify-content: space-between; align-items: center; gap: 30px; flex-wrap: wrap; margin-bottom: 28px;
+    background: radial-gradient(120% 140% at 100% 0%, var(--bg-soft) 0%, rgba(241,251,243,0) 55%);
+    padding: 6px 0 6px;
   }
-  .report-hero h2 { font-size: 26px; margin: 0 0 10px; }
+  .badge-pill {
+    display: inline-block; font-family: var(--mono); background: var(--green-soft); color: var(--green-dark);
+    font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 999px; margin-bottom: 12px; letter-spacing: 0.04em;
+  }
+  .report-hero h2 { font-family: var(--display); font-weight: 600; font-size: 27px; margin: 0 0 10px; letter-spacing:-0.01em; }
   .report-hero h2 .accent { color: var(--green); }
   .report-hero-text p { font-size: 14.5px; color: var(--gray); line-height: 1.6; max-width: 48ch; margin: 0 0 16px; }
   .report-url-row {
     display: flex; align-items: center; gap: 10px; background: #fff; border: 1.5px solid var(--line);
-    border-radius: 999px; padding: 8px 8px 8px 16px; max-width: 460px;
+    border-radius: 12px; padding: 8px 8px 8px 14px; max-width: 460px;
   }
-  .report-url-row span { font-size: 13.5px; color: var(--gray); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .report-url-row span { font-family: var(--mono); font-size: 13px; color: var(--gray); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .report-url-row button {
-    border: none; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 600;
-    padding: 8px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    border: none; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 600; font-family: var(--display);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap;
   }
   .report-url-row button:hover { background: #000; }
 
   .gauge-wrap { position: relative; width: 168px; height: 168px; flex-shrink: 0; text-align: center; }
   .gauge-wrap svg { transform: rotate(-90deg); }
   .gauge-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
-  .gauge-num { font-size: 34px; font-weight: 800; line-height: 1; }
-  .gauge-of { font-size: 11px; color: var(--gray-soft); margin-top: 2px; }
-  .gauge-tag { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+  .gauge-num { font-family: var(--display); font-size: 46px; font-weight: 700; line-height: 1; letter-spacing:-0.02em; }
+  .gauge-of { font-family: var(--mono); font-size: 10px; color: var(--gray-soft); margin-top: 4px; letter-spacing:0.06em; }
+  .gauge-tag { display: inline-block; margin-top: 7px; font-family: var(--display); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing:0.04em; }
+
+  /* Grade ruler */
+  .ruler-wrap { margin-bottom: 28px; }
+  .ruler { position: relative; height: 12px; border-radius: 6px; display: flex; overflow: visible; }
+  .ruler span.seg { height: 100%; }
+  .ruler .s-red { flex: 40; background: var(--red); border-radius: 6px 0 0 6px; }
+  .ruler .s-amber { flex: 30; background: var(--amber); }
+  .ruler .s-green { flex: 30; background: var(--green); border-radius: 0 6px 6px 0; }
+  .ruler .marker { position: absolute; top: -7px; transform: translateX(-50%); width: 4px; height: 26px; background: var(--ink); border-radius: 3px; box-shadow: 0 0 0 3px #fff; }
+  .ruler-scale { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--gray-soft); margin-top: 9px; letter-spacing:0.03em; }
 
   .stat-cards {
     display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line);
@@ -184,57 +211,76 @@
   .stat-card { padding: 20px; display: flex; align-items: center; gap: 12px; border-right: 1px solid var(--line); }
   .stat-card:last-child { border-right: none; }
   .stat-icon {
-    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
     font-size: 15px; font-weight: 800; flex-shrink: 0;
   }
   .stat-icon.pass { background: var(--green-soft); color: var(--green); }
   .stat-icon.warn { background: var(--amber-soft); color: var(--amber); }
   .stat-icon.fail { background: var(--red-soft); color: var(--red); }
   .stat-icon.score { background: var(--blue-soft); color: var(--blue); }
-  .stat-card strong { display: block; font-size: 19px; line-height: 1.2; }
+  .stat-card strong { display: block; font-family: var(--display); font-weight: 700; font-size: 21px; line-height: 1.2; }
   .stat-card small { font-size: 12px; color: var(--gray-soft); }
 
-  .overview-panel { display: grid; grid-template-columns: 240px 1fr; gap: 24px; margin-bottom: 28px; }
-  .overview-side { background: var(--bg-soft); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: flex-end; }
-  .overview-side .trophy { font-size: 26px; margin-bottom: 8px; }
-  .overview-side strong { font-size: 14px; display: block; margin-bottom: 4px; }
-  .overview-side p { font-size: 13px; color: var(--gray); line-height: 1.5; margin: 0; }
-  .overview-list h3 { font-size: 18px; margin: 0 0 4px; }
-  .overview-list > p { font-size: 13.5px; color: var(--gray-soft); margin: 0 0 12px; }
-  .check-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .check-item:last-child { border-bottom: none; }
+  /* Grouped checks */
+  .overview-head { display:flex; align-items:baseline; gap:12px; margin-bottom: 6px; }
+  .overview-head h3 { font-family: var(--display); font-weight: 600; font-size: 19px; margin: 0; }
+  .overview-head p { font-size: 13px; color: var(--gray-soft); margin: 0; }
+  .verdict {
+    display:flex; gap:14px; align-items:center; background: var(--bg-soft); border-radius: 14px; padding: 16px 18px; margin: 16px 0 24px;
+  }
+  .verdict .trophy { font-size: 26px; }
+  .verdict strong { font-family: var(--display); font-weight:600; font-size:14px; display:block; margin-bottom:2px; }
+  .verdict p { font-size: 13px; color: var(--gray); line-height: 1.5; margin: 0; }
+
+  .check-group { margin-bottom: 22px; }
+  .check-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .check-group-head .pip { width: 9px; height: 9px; border-radius: 2px; }
+  .check-group-head.pass .pip { background: var(--green); }
+  .check-group-head.warn .pip { background: var(--amber); }
+  .check-group-head.fail .pip { background: var(--red); }
+  .check-group-head h4 { font-family: var(--display); font-weight: 600; font-size: 15px; margin: 0; }
+  .check-group-head .note { font-family: var(--mono); font-size: 11px; color: var(--gray-soft); margin-left: auto; letter-spacing:0.04em; }
+
+  .check-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line-soft); }
+  .check-item:first-child { border-top: none; }
   .check-left { display: flex; gap: 12px; }
   .check-icon {
-    width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0; margin-top: 1px;
+    width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; flex-shrink: 0; margin-top: 1px;
   }
-  .check-icon.pass { background: var(--green); }
-  .check-icon.warn { background: var(--amber); }
-  .check-icon.fail { background: var(--red); }
-  .check-title { font-weight: 700; font-size: 14.5px; margin-bottom: 3px; }
+  .check-icon.pass { background: var(--green-soft); color: var(--green); }
+  .check-icon.warn { background: var(--amber-soft); color: var(--amber); }
+  .check-icon.fail { background: var(--red-soft); color: var(--red); }
+  .check-title { font-family: var(--display); font-weight: 600; font-size: 14.5px; margin-bottom: 3px; }
   .check-detail { font-size: 13.5px; color: var(--gray); line-height: 1.5; }
-  .check-tag { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; white-space: nowrap; height: fit-content; }
+  .check-tag { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 6px; white-space: nowrap; height: fit-content; align-self:center; letter-spacing:0.02em; }
   .check-tag.pass { background: var(--green-soft); color: var(--green-dark); }
   .check-tag.warn { background: var(--amber-soft); color: var(--amber); }
   .check-tag.fail { background: var(--red-soft); color: var(--red); }
 
+  /* Dark CTA */
   .cta-banner {
-    background: var(--bg-soft); border-radius: 16px; padding: 24px; display: flex;
-    justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px;
+    background: var(--ink); color:#fff; border-radius: 16px; padding: 30px; position:relative; overflow:hidden; margin-bottom: 28px;
   }
-  .cta-banner h3 { font-size: 19px; margin: 0 0 6px; }
-  .cta-banner h3 .accent { color: var(--green); }
-  .cta-banner p { font-size: 13.5px; color: var(--gray); margin: 0; max-width: 44ch; }
-  .cta-banner a {
-    background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
-    font-size: 14px; padding: 13px 22px; border-radius: 999px; white-space: nowrap;
+  .cta-banner::after { content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%; background: radial-gradient(circle, rgba(30,142,62,.38), transparent 68%); }
+  .cta-banner h3 { font-family: var(--display); font-weight:600; font-size: 21px; margin: 0 0 8px; position:relative; }
+  .cta-banner h3 .accent { color: #58C878; }
+  .cta-banner p { font-size: 13.5px; color: #C7CAD1; margin: 0; max-width: 46ch; position:relative; }
+  .cta-contact { display:flex; flex-wrap:wrap; gap:12px; margin-top: 22px; position:relative; }
+  .cta-contact a {
+    display:inline-flex; align-items:center; gap:9px; text-decoration:none;
+    background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.16); border-radius:10px; padding:11px 16px;
+    font-family: var(--mono); font-size:13px; font-weight:700; color:#fff;
   }
-  .cta-banner a:hover { background: var(--green-dark); }
+  .cta-contact a .ico { color:#58C878; }
+  .cta-contact a.primary { background: var(--green); border-color: var(--green); color:#fff; font-family: var(--display); }
+  .cta-contact a.primary:hover { background: var(--green-dark); }
 
-  .quick-wins h4 { font-size: 15px; margin: 0 0 14px; }
+  .quick-wins h4 { font-family: var(--display); font-weight: 600; font-size: 15px; margin: 0 0 14px; }
   .quick-wins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 28px; }
-  .quick-win-card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
-  .quick-win-card .qw-title { font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
+  .quick-win-card { border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .quick-win-card .qw-num { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--green-dark); letter-spacing: 0.08em; }
+  .quick-win-card .qw-title { font-family: var(--display); font-weight: 600; font-size: 13.5px; margin: 7px 0 5px; }
   .quick-win-card .qw-detail { font-size: 12.5px; color: var(--gray); line-height: 1.5; }
 
   .report-footer {
@@ -242,24 +288,35 @@
     flex-wrap: wrap; padding-top: 20px; border-top: 1px solid var(--line);
   }
   .report-footer .disclaimer { font-size: 12px; color: var(--gray-soft); max-width: 56ch; line-height: 1.5; }
+  .report-footer .contact-line { font-family: var(--mono); font-size: 11px; color: var(--gray-soft); margin-top: 8px; }
+  .report-footer .contact-line a { color: var(--green-dark); text-decoration: none; font-weight: 700; }
   .report-footer .share-btn {
-    border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px;
-    font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 16px;
+    font-size: 12.5px; font-weight: 600; font-family: var(--display); cursor: pointer; white-space: nowrap;
   }
   .report-footer .share-btn:hover { border-color: var(--gray-soft); }
 
   @media (max-width: 720px) {
     .stat-cards { grid-template-columns: repeat(2, 1fr); }
     .stat-card { border-bottom: 1px solid var(--line); }
-    .overview-panel { grid-template-columns: 1fr; }
     .report-hero { flex-direction: column; align-items: flex-start; }
+    .gauge-wrap { order:-1; }
   }
   @media (max-width: 480px) {
-    h1 { font-size: 26px; }
+    h1 { font-size: 27px; }
     .form-row { flex-direction: column; }
     #scan-btn { width: 100%; }
     .stat-cards { grid-template-columns: 1fr 1fr; }
   }
+
+  @media print {
+    body { background:#fff; }
+    .wrap { padding: 0; max-width:none; }
+    .cta-banner, .stat-icon, .check-icon, .check-tag, .gauge-tag, .badge-pill, .ruler span, .ruler .marker { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .report-actions, .share-btn, #reaudit-btn { display:none !important; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
 </style>
 </head>
 <body>
@@ -350,6 +407,10 @@
 (function() {
   const FUNCTION_URL = '/.netlify/functions/ai-audit';
   const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwMHY6Us6ZSXPS2r-pO32n3QuDdh-lZdShyki4UUUj26_kPfB6e5lXURjhlRzV5ssIN/exec';
+
+  const CONTACT_EMAIL = 'Enquiry@seozar.co';
+  const CONTACT_PHONE_DISPLAY = '+91 87962 71027';
+  const CONTACT_PHONE_TEL = '+918796271027';
 
   const urlInput = document.getElementById('url-input');
   const scanBtn = document.getElementById('scan-btn');
@@ -447,24 +508,50 @@
     return { label: 'Needs Work', color: 'var(--red)', tagBg: 'var(--red-soft)', tagColor: 'var(--red)' };
   }
 
+  function checkItemHTML(i) {
+    return `
+      <div class="check-item">
+        <div class="check-left">
+          <div class="check-icon ${i.status}">${iconChar(i.status)}</div>
+          <div>
+            <div class="check-title">${i.label}</div>
+            <div class="check-detail">${i.detail}</div>
+          </div>
+        </div>
+        ${i.tag ? `<span class="check-tag ${i.status}">${i.tag}</span>` : ''}
+      </div>`;
+  }
+
+  function groupHTML(key, title, note, items) {
+    if (!items.length) return '';
+    return `
+      <div class="check-group">
+        <div class="check-group-head ${key}">
+          <span class="pip"></span><h4>${title}</h4><span class="note">${note}</span>
+        </div>
+        ${items.map(checkItemHTML).join('')}
+      </div>`;
+  }
+
   function renderReport(url, result) {
     const meta = scoreMeta(result.pct);
     const r = 74;
     const circumference = 2 * Math.PI * r;
     const offset = circumference - (result.pct / 100) * circumference;
 
-    const passedCount = result.items.filter(i => i.status === 'pass').length;
-    const warnCount = result.items.filter(i => i.status === 'warn').length;
-    const failCount = result.items.filter(i => i.status === 'fail').length;
+    const fails = result.items.filter(i => i.status === 'fail');
+    const warns = result.items.filter(i => i.status === 'warn');
+    const passes = result.items.filter(i => i.status === 'pass');
 
     const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
     const quickWins = result.items.filter(i => i.status !== 'pass').slice(0, 3);
+    const markerPct = Math.max(2, Math.min(98, result.pct));
 
     reportBox.innerHTML = `
       <div class="report-topbar">
         <div class="report-brand">
-          <span class="mark">●</span>
+          <span class="mark"></span>
           <strong>SEOZAR</strong>
           <span>Free AI Audit Tool</span>
         </div>
@@ -478,7 +565,7 @@
         <div class="report-hero-text">
           <span class="badge-pill">AUDIT COMPLETED · ${dateStr}</span>
           <h2>AI Readiness Report is <span class="accent">Ready!</span> 🚀</h2>
-          <p>Here's a comprehensive overview of how readable your website is to AI systems like ChatGPT, Claude, and Perplexity — not just Google.</p>
+          <p>Here's how readable your website is to AI systems like ChatGPT, Claude, and Perplexity — not just Google.</p>
           <div class="report-url-row">
             <span>${url}</span>
             <button id="reaudit-btn">Re-audit this site</button>
@@ -492,24 +579,34 @@
           </svg>
           <div class="gauge-center">
             <div class="gauge-num" style="color:${meta.color}">${result.pct}</div>
-            <div class="gauge-of">out of 100</div>
+            <div class="gauge-of">OUT OF 100</div>
             <span class="gauge-tag" style="background:${meta.tagBg};color:${meta.tagColor}">${meta.label}</span>
           </div>
+        </div>
+      </div>
+
+      <div class="ruler-wrap">
+        <div class="ruler">
+          <span class="seg s-red"></span><span class="seg s-amber"></span><span class="seg s-green"></span>
+          <span class="marker" style="left:${markerPct}%"></span>
+        </div>
+        <div class="ruler-scale">
+          <span>0 · Needs work</span><span>40 · Average</span><span>70 · Good</span><span>100</span>
         </div>
       </div>
 
       <div class="stat-cards">
         <div class="stat-card">
           <div class="stat-icon pass">✓</div>
-          <div><strong>${passedCount}</strong><small>Passed Checks</small></div>
+          <div><strong>${passes.length}</strong><small>Passed Checks</small></div>
         </div>
         <div class="stat-card">
           <div class="stat-icon warn">!</div>
-          <div><strong>${warnCount}</strong><small>Improvements</small></div>
+          <div><strong>${warns.length}</strong><small>Improvements</small></div>
         </div>
         <div class="stat-card">
           <div class="stat-icon fail">✕</div>
-          <div><strong>${failCount}</strong><small>Critical Issues</small></div>
+          <div><strong>${fails.length}</strong><small>Critical Issues</small></div>
         </div>
         <div class="stat-card">
           <div class="stat-icon score">↗</div>
@@ -517,44 +614,39 @@
         </div>
       </div>
 
-      <div class="overview-panel">
-        <div class="overview-side">
-          <div class="trophy">${result.pct >= 70 ? '🏆' : result.pct >= 40 ? '🔧' : '⚠️'}</div>
+      <div class="overview-head">
+        <h3>Audit Overview</h3>
+        <p>A summary of your website's key AI-readiness factors</p>
+      </div>
+      <div class="verdict">
+        <div class="trophy">${result.pct >= 70 ? '🏆' : result.pct >= 40 ? '🥈' : '⚠️'}</div>
+        <div>
           <strong>${result.pct >= 70 ? 'Good Work!' : result.pct >= 40 ? 'Almost There' : 'Needs Attention'}</strong>
-          <p>${result.pct >= 70 ? 'Your website is performing well. Focus on the improvements to make it even better.' : 'Your site has real opportunities to improve. Fixing the items below can meaningfully boost your rankings.'}</p>
-        </div>
-        <div class="overview-list">
-          <h3>Audit Overview</h3>
-          <p>A summary of your website's key AI-readiness factors</p>
-          ${result.items.map(i => `
-            <div class="check-item">
-              <div class="check-left">
-                <div class="check-icon ${i.status}">${iconChar(i.status)}</div>
-                <div>
-                  <div class="check-title">${i.label}</div>
-                  <div class="check-detail">${i.detail}</div>
-                </div>
-              </div>
-              ${i.tag ? `<span class="check-tag ${i.status}">${i.tag}</span>` : ''}
-            </div>
-          `).join('')}
+          <p>${result.pct >= 70 ? 'Your website is performing well. Focus on the improvements to make it even better.' : 'Your site has real opportunities to improve. The items below are the fastest way to move the needle.'}</p>
         </div>
       </div>
 
+      ${groupHTML('fail', 'Critical issues', 'Fix first', fails)}
+      ${groupHTML('warn', 'Improvements', 'Worth doing', warns)}
+      ${groupHTML('pass', 'Passed checks', 'Looking good', passes)}
+
       <div class="cta-banner">
-        <div>
-          <h3>Ready to fix what's <span class="accent">holding your AI visibility back</span>?</h3>
-          <p>Get a personalized AI-visibility roadmap from our experts and get found by AI search tools too.</p>
+        <h3>Ready to fix what's <span class="accent">holding your AI visibility back?</span></h3>
+        <p>To improve your business rankings, get a personalised AI-visibility roadmap from our experts and get found by AI search tools too.</p>
+        <div class="cta-contact">
+          <a class="primary" href="https://seozar.co/contacts" target="_blank" rel="noopener">Get My AI Visibility Plan →</a>
+          <a href="mailto:${CONTACT_EMAIL}"><span class="ico">✉</span>${CONTACT_EMAIL}</a>
+          <a href="tel:${CONTACT_PHONE_TEL}"><span class="ico">✆</span>${CONTACT_PHONE_DISPLAY}</a>
         </div>
-        <a href="https://seozar.co/contacts" target="_blank" rel="noopener">Get My AI Visibility Plan →</a>
       </div>
 
       ${quickWins.length ? `
       <div class="quick-wins">
         <h4>💡 Quick Wins for You</h4>
         <div class="quick-wins-grid">
-          ${quickWins.map(q => `
+          ${quickWins.map((q, idx) => `
             <div class="quick-win-card">
+              <div class="qw-num">0${idx + 1}</div>
               <div class="qw-title">${q.label}</div>
               <div class="qw-detail">${q.detail}</div>
             </div>
@@ -563,7 +655,10 @@
       </div>` : ''}
 
       <div class="report-footer">
-        <div class="disclaimer">⚠ Disclaimer: This is an automated readability check — it doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
+        <div>
+          <div class="disclaimer">⚠ Disclaimer: This is an automated readability check — it doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
+          <div class="contact-line">To improve your rankings, contact us · <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a> · ${CONTACT_PHONE_DISPLAY}</div>
+        </div>
         <button class="share-btn" id="copy-link-btn">Copy report link</button>
       </div>
     `;
