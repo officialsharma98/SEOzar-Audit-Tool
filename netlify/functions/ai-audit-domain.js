@@ -1,1005 +1,375 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Free AI Audit Tool | SEOzar</title>
-<meta name="description" content="Check if ChatGPT, Claude, and Perplexity can read and understand your website. Free AI-readiness audit from SEOzar — Best AI SEO Agency in Delhi NCR & India." />
-<style>
-  :root {
-    --green: #1E8E3E;
-    --green-dark: #17692F;
-    --green-soft: #EAF7EE;
-    --ink: #14171F;
-    --gray: #5B6270;
-    --gray-soft: #9AA1AC;
-    --line: #E4E7EC;
-    --paper: #FFFFFF;
-    --bg-soft: #F1FBF3;
-    --amber: #C8862B;
-    --amber-soft: #FBF1E1;
-    --red: #C0392B;
-    --red-soft: #FDECEA;
-    --blue-soft: #EEF2FF;
-    --blue: #4F5FDB;
-    --sans: 'Segoe UI', -apple-system, Roboto, Arial, sans-serif;
-  }
-  * { box-sizing: border-box; }
-  html, body { width: 100%; margin: 0; padding: 0; }
-  body { font-family: var(--sans); color: var(--ink); background: var(--paper); }
-  .wrap { max-width: 900px; width: 100%; margin: 0 auto; padding: 48px 24px 80px; box-sizing: border-box; }
+// netlify/functions/ai-audit-domain.js
+//
+// STEP 1 of the whole-website AI audit.
+// Runs every check that applies to the WHOLE site (once), and discovers up to 10 pages
+// for the browser to scan one-by-one using ai-audit-page.js.
+//
+// Returns: { items: [...], pages: [{url, lastmod}], multiLang: boolean }
+// Each item: { key, status: 'pass'|'warn'|'fail'|'na'|'info', label, detail, tag }
 
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 700; color: var(--green);
-    letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 14px;
-  }
-  .eyebrow::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-  h1 { font-size: 34px; line-height: 1.2; margin: 0 0 14px; letter-spacing: -0.01em; }
-  .lede { font-size: 16px; line-height: 1.6; color: var(--gray); max-width: 60ch; margin: 0 0 32px; }
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const BOT_UAS = {
+  gptbot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)',
+  claudebot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)',
+  perplexitybot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)'
+};
+const MAX_PAGES = 10;
+const DEADLINE_MS = 8500; // Netlify's default function limit is 10s; stay safely under it
+const SKIP_EXT = /\.(jpe?g|png|gif|svg|webp|avif|pdf|zip|xml|css|js|json|mp4|mp3|ico|woff2?|txt|docx?|xlsx?)$/i;
+const LANG_CODES = new Set(['en','hi','fr','de','es','it','pt','nl','ru','ja','ko','zh','ar','tr','pl','sv','da','no','fi','id','th','vi','bn','ta','te','mr','gu','kn','ml','pa','ur','he','el','cs','ro','hu','uk']);
 
-  .form-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  #url-input {
-    flex: 1; min-width: 220px; padding: 15px 18px; border: 1.5px solid var(--line);
-    border-radius: 999px; font-size: 15px; outline: none; color: var(--ink);
-  }
-  #url-input:focus { border-color: var(--green); }
-  #scan-btn {
-    padding: 15px 28px; border: none; border-radius: 999px; background: var(--green);
-    color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; white-space: nowrap;
-  }
-  #scan-btn:hover { background: var(--green-dark); }
-  #scan-btn:disabled { background: #A9C9B2; cursor: default; }
-  .helper-note { font-size: 12.5px; color: var(--gray-soft); margin-top: 10px; }
+exports.handler = async function (event) {
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
-  #loading {
-    display: none; margin-top: 36px; padding: 20px; border-radius: 16px;
-    background: var(--bg-soft); font-size: 14px; color: var(--gray);
-  }
-  #loading.active { display: block; }
-  .bar { height: 4px; width: 100%; background: #DCEFDF; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
-  .bar-fill { height: 100%; width: 3%; background: var(--green); border-radius: 4px; transition: width 0.35s ease; }
-  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
-
-  #error {
-    display: none; margin-top: 24px; padding: 16px 18px; border-radius: 12px;
-    background: var(--red-soft); color: var(--red); font-size: 14px; line-height: 1.5;
-  }
-  #error.active { display: block; }
-
-  #gate { display: none; margin-top: 32px; padding: 24px; border: 1.5px solid var(--line); border-radius: 16px; }
-  #gate.active { display: block; }
-  #gate h3 { margin: 0 0 6px; font-size: 18px; }
-  #gate p { margin: 0 0 16px; color: var(--gray); font-size: 14px; line-height: 1.5; }
-  #gate .form-row input { flex: 1; min-width: 160px; }
-  #gate .form-row button { background: var(--green); white-space: nowrap; padding: 15px 24px; }
-  #gate .form-row button:hover { background: var(--green-dark); }
-
-  /* ---------- Landing screen ---------- */
-  :root { --navy: #0E1B4D; }
-  .wrap { max-width: 1240px; padding: 28px 24px 80px; }
-  #loading, #gate, #error { max-width: 900px; margin-left: auto; margin-right: auto; }
-  #report { max-width: 960px; margin-left: auto; margin-right: auto; }
-
-  .hero-badge {
-    display: inline-flex; align-items: center; gap: 8px; background: #EEF2FF; color: var(--navy);
-    border-radius: 999px; padding: 9px 16px; font-size: 14px; font-weight: 700; margin-bottom: 26px;
-  }
-  .hero-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 24px; align-items: center; }
-  .hero-left h1 {
-    font-size: clamp(34px, 5.2vw, 58px); line-height: 1.08; letter-spacing: -0.02em;
-    font-weight: 800; color: var(--navy); margin: 0 0 20px;
-  }
-  .grad { color: var(--green); position: relative; display: inline-block; }
-  .grad::after {
-    content: ''; position: absolute; left: 2%; right: 12%; bottom: -8px; height: 9px;
-    border-bottom: 4px solid var(--green); border-radius: 50%;
-  }
-  .hero-left .lede { color: #2B3558; font-size: 18px; line-height: 1.55; max-width: 56ch; margin: 0 0 26px; }
-
-  .search-pill {
-    display: flex; align-items: center; gap: 8px; border: 1.5px solid #2D3E8F; border-radius: 999px;
-    padding: 6px 6px 6px 18px; background: #fff; max-width: 640px;
-  }
-  .search-pill:focus-within { border-color: var(--green); }
-  .search-pill .link-ic { font-size: 18px; opacity: 0.8; }
-  .search-pill #url-input { border: none; border-radius: 0; padding: 12px 4px; flex: 1; min-width: 0; font-size: 16px; background: transparent; }
-  .search-pill #scan-btn { padding: 15px 26px; font-size: 16px; background: linear-gradient(135deg, #1E8E3E, #137A33); }
-  .search-pill #scan-btn:hover { background: linear-gradient(135deg, #17692F, #0F5F28); }
-  .search-pill #scan-btn:disabled { background: #A9C9B2; }
-
-  .assure { display: flex; flex-wrap: wrap; gap: 10px 0; margin-top: 18px; font-size: 13px; color: #2B3558; }
-  .assure span { padding: 0 13px; white-space: nowrap; border-left: 1px solid var(--line); display: inline-flex; align-items: center; gap: 8px; }
-  .assure span:first-child { padding-left: 0; border-left: none; }
-
-  /* illustration (original artwork, no third-party logos) */
-  .ai-illus { position: relative; width: 100%; max-width: 480px; aspect-ratio: 480 / 380; margin-left: auto; }
-  .ai-illus .win {
-    position: absolute; left: 12%; right: 12%; top: 5%; bottom: 10%;
-    border: 2px solid var(--navy); border-radius: 14px; background: #fff;
-  }
-  .ai-illus .win::before { content: ''; position: absolute; left: 0; right: 0; top: 28px; border-top: 2px solid var(--navy); }
-  .ai-illus .win i { position: absolute; top: 10px; width: 9px; height: 9px; border-radius: 50%; }
-  .ai-illus .win i:nth-child(1) { left: 14px; background: #F04438; }
-  .ai-illus .win i:nth-child(2) { left: 30px; background: #F5B301; }
-  .ai-illus .win i:nth-child(3) { left: 46px; background: #1E8E3E; }
-  .ai-illus svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .ai-illus .chip {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: 86px; height: 86px; border-radius: 20px; background: linear-gradient(145deg, #14307C, #0A1745);
-    color: #fff; font-size: 36px; font-weight: 800; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 10px 24px rgba(14, 27, 77, 0.35);
-  }
-  .llm {
-    position: absolute; background: #fff; border-radius: 999px; padding: 11px 18px; font-size: 17px; font-weight: 700;
-    color: var(--ink); box-shadow: 0 6px 20px rgba(14, 27, 77, 0.14); display: flex; align-items: center; gap: 9px; white-space: nowrap;
-  }
-  .llm b { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
-  .llm.p1 { top: 17%; left: 0; }  .llm.p1 b { background: #111827; }
-  .llm.p2 { top: 17%; right: 0; } .llm.p2 b { background: #E8643C; }
-  .llm.p3 { bottom: 12%; left: 1%; } .llm.p3 b { background: linear-gradient(135deg, #4285F4, #A142F4); }
-  .llm.p4 { bottom: 12%; right: 0; } .llm.p4 b { background: #1F8FA0; }
-
-  /* Why SEOzar / What you'll uncover */
-  .why-section { display: grid; grid-template-columns: 1fr 1.3fr; margin-top: 46px; }
-  .why-col { padding: 0 32px; }
-  .why-col:first-child { padding-left: 0; }
-  .why-col + .why-col { border-left: 1px solid var(--line); }
-  .sec-label { font-size: 18px; font-weight: 800; color: var(--navy); text-transform: uppercase; margin-bottom: 16px; }
-  .tile-list { display: flex; flex-direction: column; gap: 10px; }
-  .tile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
-  .tile-item { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; color: var(--ink); }
-  .tile { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; font-weight: 800; }
-  .tile.green { background: #E3F5E8; color: var(--green); }  .tile.blue { background: #E8EDFF; color: #3B4FD8; }
-  .tile.purple { background: #EEE8FF; } .tile.yellow { background: #FFF3D6; }
-  .tile.pink { background: #FFE6EE; }   .tile.teal { background: #E0F5F0; }
-
-  /* Sample overview card */
-  .ov-card {
-    margin-top: 30px; border: 1px solid var(--line); border-radius: 22px; padding: 20px;
-    display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; background: #fff; box-shadow: 0 6px 24px rgba(14, 27, 77, 0.07);
-  }
-  .ov-main { border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
-  .ov-head { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
-  .ov-head .tile { width: 42px; height: 42px; font-size: 20px; }
-  .ov-title { font-size: 20px; font-weight: 800; color: var(--navy); }
-  .ov-sub { font-size: 13.5px; color: var(--gray); }
-  .sample-pill { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--gray); background: #F0F2F5; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
-  .ov-row { display: grid; grid-template-columns: 24px minmax(110px, 225px) 1fr 18px; gap: 10px; align-items: center; margin: 12px 0; font-size: 14.5px; font-weight: 600; }
-  .ov-dot { width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-  .ov-dot.pass { background: var(--green); } .ov-dot.warn { background: #F5A623; } .ov-dot.fail { background: #E5392B; }
-  .ov-track { height: 8px; background: #E8EBF0; border-radius: 6px; overflow: hidden; }
-  .ov-fill { height: 100%; border-radius: 6px; }
-  .ov-fill.pass { background: var(--green); } .ov-fill.warn { background: #F5A623; } .ov-fill.fail { background: #E5392B; }
-  .ov-tick { color: var(--green); font-weight: 800; }
-  .ov-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .ov-stat { border-radius: 16px; padding: 16px 18px; position: relative; border: 1px solid transparent; }
-  .ov-stat .num { font-size: 30px; font-weight: 800; line-height: 1.1; }
-  .ov-stat .lbl { font-size: 14.5px; color: var(--gray); margin-top: 4px; }
-  .ov-stat .ic { position: absolute; top: 14px; right: 16px; font-size: 20px; }
-  .ov-stat.pass { background: #F0FAF3; border-color: #D5EFDC; } .ov-stat.pass .num { color: var(--green); }
-  .ov-stat.warn { background: #FFF8EA; border-color: #F8E5BE; } .ov-stat.warn .num { color: #E08A00; }
-  .ov-stat.fail { background: #FFF1F0; border-color: #F7D3CF; } .ov-stat.fail .num { color: #E5392B; }
-  .ov-stat.score { background: #EEF3FF; border-color: #D7E0FB; } .ov-stat.score .num { color: #1B2FA6; }
-  .ov-cta { grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 16px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .ov-cta strong { font-size: 20px; color: var(--navy); }
-  .ov-cta strong .accent { color: var(--green); }
-  .ov-cta a { background: linear-gradient(135deg, #1E8E3E, #137A33); color: #fff; text-decoration: none; font-weight: 700; font-size: 16px; padding: 14px 26px; border-radius: 999px; white-space: nowrap; }
-
-  .hero-left { min-width: 0; }
-  .search-pill #url-input { width: 100%; }
-  @media (max-width: 900px) {
-    .hero-grid { grid-template-columns: minmax(0, 1fr); }
-    .ai-illus { display: none; }
-    .why-section { grid-template-columns: 1fr; gap: 28px; }
-    .why-col, .why-col:first-child { padding: 0; }
-    .why-col + .why-col { border-left: none; border-top: 1px solid var(--line); padding-top: 24px; }
-    .ov-card { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 560px) {
-    .tile-grid { grid-template-columns: 1fr; }
-    .search-pill { padding-left: 14px; }
-    .search-pill .link-ic { display: none; }
-    .search-pill #scan-btn { padding: 14px 18px; font-size: 15px; }
-    .assure span { border-left: none; padding: 0 14px 0 0; }
-    .ov-row { grid-template-columns: 24px minmax(90px, 1fr) 1fr 18px; font-size: 13px; }
-    .ov-stat .num { font-size: 24px; }
-    .ov-stat .ic { display: none; }
+  let target;
+  try {
+    const body = JSON.parse(event.body || '{}');
+    target = new URL(body.url);
+    if (!/^https?:$/.test(target.protocol) || isBlockedHost(target.hostname)) throw new Error('bad url');
+  } catch (e) {
+    return json(400, { error: 'Invalid or missing URL' });
   }
 
-  #report { display: none; margin-top: 40px; }
-  #report.active { display: block; animation: rise 0.35s ease; }
-  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  const started = Date.now();
+  const remaining = () => DEADLINE_MS - (Date.now() - started);
+  const tmo = (max) => Math.max(800, Math.min(max, remaining()));
+  const origin = target.origin;
 
-  .report-topbar {
-    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
-    padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 28px;
-  }
-  .report-brand { display: flex; align-items: baseline; gap: 10px; }
-  .report-brand .mark { color: var(--green); font-size: 20px; }
-  .report-brand strong { font-size: 17px; letter-spacing: -0.01em; }
-  .report-brand span { font-size: 13px; color: var(--gray-soft); }
-  .report-actions { display: flex; gap: 10px; }
-  .btn-outline, .btn-solid { border-radius: 999px; padding: 10px 18px; font-size: 13.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-  .btn-outline { background: #fff; border: 1.5px solid var(--line); color: var(--ink); }
-  .btn-outline:hover { border-color: var(--gray-soft); }
-  .btn-solid { background: var(--green); border: none; color: #fff; }
-  .btn-solid:hover { background: var(--green-dark); }
+  try {
+    // ---------- Batch 1: everything we can fetch in parallel ----------
+    const [robotsR, llmsR, llmsFullR, skillsR, pluginR, homeBrowser, homeGpt, homeClaude, homePerp, smA, smB, smC] = await Promise.all([
+      fetchRaw(origin + '/robots.txt', { timeout: tmo(4000) }),
+      fetchRaw(origin + '/llms.txt', { timeout: tmo(4000) }),
+      fetchRaw(origin + '/llms-full.txt', { timeout: tmo(4000) }),
+      fetchRaw(origin + '/skills.json', { timeout: tmo(4000) }),
+      fetchRaw(origin + '/.well-known/ai-plugin.json', { timeout: tmo(4000) }),
+      fetchRaw(origin + '/', { timeout: tmo(5000) }),
+      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS.gptbot }),
+      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS.claudebot }),
+      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS.perplexitybot }),
+      fetchRaw(origin + '/sitemap.xml', { timeout: tmo(4000) }),
+      fetchRaw(origin + '/sitemap_index.xml', { timeout: tmo(4000) }),
+      fetchRaw(origin + '/wp-sitemap.xml', { timeout: tmo(4000) })
+    ]);
 
-  .report-hero { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
-  .badge-pill {
-    display: inline-block; background: var(--green-soft); color: var(--green-dark);
-    font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; margin-bottom: 12px;
-  }
-  .report-hero h2 { font-size: 26px; margin: 0 0 10px; }
-  .report-hero h2 .accent { color: var(--green); }
-  .report-hero-text p { font-size: 14.5px; color: var(--gray); line-height: 1.6; max-width: 48ch; margin: 0 0 16px; }
-  .report-url-row {
-    display: flex; align-items: center; gap: 10px; background: #fff; border: 1.5px solid var(--line);
-    border-radius: 999px; padding: 8px 8px 8px 16px; max-width: 460px;
-  }
-  .report-url-row span { font-size: 13.5px; color: var(--gray); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .report-url-row button {
-    border: none; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 600;
-    padding: 8px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
-  }
-  .report-url-row button:hover { background: #000; }
+    const items = [];
 
-  .gauge-wrap { position: relative; width: 168px; height: 168px; flex-shrink: 0; text-align: center; }
-  .gauge-wrap svg { transform: rotate(-90deg); }
-  .gauge-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
-  .gauge-num { font-size: 34px; font-weight: 800; line-height: 1; }
-  .gauge-of { font-size: 11px; color: var(--gray-soft); margin-top: 2px; }
-  .gauge-tag { display: inline-block; white-space: nowrap; margin-top: 6px; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
-
-  .stat-cards {
-    display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line);
-    border-radius: 16px; overflow: hidden; margin-bottom: 28px;
-  }
-  .stat-card { padding: 20px; display: flex; align-items: center; gap: 12px; border-right: 1px solid var(--line); }
-  .stat-card:last-child { border-right: none; }
-  .stat-icon {
-    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 15px; font-weight: 800; flex-shrink: 0;
-  }
-  .stat-icon.pass { background: var(--green-soft); color: var(--green); }
-  .stat-icon.warn { background: var(--amber-soft); color: var(--amber); }
-  .stat-icon.fail { background: var(--red-soft); color: var(--red); }
-  .stat-icon.score { background: var(--blue-soft); color: var(--blue); }
-  .stat-card strong { display: block; font-size: 19px; line-height: 1.2; }
-  .stat-card small { font-size: 12px; color: var(--gray-soft); }
-
-  .overview-panel { display: grid; grid-template-columns: 240px 1fr; gap: 24px; margin-bottom: 28px; }
-  .overview-side { background: var(--bg-soft); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: flex-start; align-self: start; position: sticky; top: 16px; }
-  .overview-side .trophy { font-size: 26px; margin-bottom: 8px; }
-  .overview-side strong { font-size: 14px; display: block; margin-bottom: 4px; }
-  .overview-side p { font-size: 13px; color: var(--gray); line-height: 1.5; margin: 0; }
-  .overview-list h3 { font-size: 18px; margin: 0 0 4px; }
-  .overview-list > p { font-size: 13.5px; color: var(--gray-soft); margin: 0 0 12px; }
-  .check-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .check-item:last-child { border-bottom: none; }
-  .check-left { display: flex; gap: 12px; }
-  .check-icon {
-    width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 800; color: #fff; flex-shrink: 0; margin-top: 1px;
-  }
-  .check-icon.pass { background: var(--green); }
-  .check-icon.warn { background: var(--amber); }
-  .check-icon.fail { background: var(--red); }
-  .check-title { font-weight: 700; font-size: 14.5px; margin-bottom: 3px; }
-  .check-detail { font-size: 13.5px; color: var(--gray); line-height: 1.5; }
-  .check-tag { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; white-space: nowrap; height: fit-content; }
-  .check-tag.pass { background: var(--green-soft); color: var(--green-dark); }
-  .check-tag.warn { background: var(--amber-soft); color: var(--amber); }
-  .check-tag.fail { background: var(--red-soft); color: var(--red); }
-
-
-  .check-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-  .check-pts { font-size: 11.5px; color: var(--gray-soft); font-weight: 600; white-space: nowrap; }
-  .check-icon.info { background: var(--gray-soft); }
-  .check-tag.info { background: #F0F2F5; color: var(--gray); }
-  .pg-ic.info { background: var(--gray-soft); }
-  .extras-title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--gray-soft); text-transform: uppercase; margin: 22px 0 2px; }
-  .cap-note { background: var(--red-soft); color: var(--red); border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
-  .pg-details { margin-top: 8px; font-size: 12.5px; color: var(--gray); }
-  .pg-details summary { cursor: pointer; color: var(--green-dark); font-weight: 600; }
-  .pg-details ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-  .pg-details li { display: flex; align-items: center; gap: 8px; word-break: break-all; }
-  .pg-ic { width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #fff; flex-shrink: 0; }
-  .pg-ic.pass { background: var(--green); }
-  .pg-ic.warn { background: var(--amber); }
-  .pg-ic.fail { background: var(--red); }
-  .scanned-pages { margin-top: 18px; }
-  .email-note { background: var(--green-soft); color: var(--green-dark); border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5; margin-bottom: 20px; }
-
-  .cta-banner {
-    background: var(--bg-soft); border-radius: 16px; padding: 24px; display: flex;
-    justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px;
-  }
-  .cta-banner h3 { font-size: 19px; margin: 0 0 6px; }
-  .cta-banner h3 .accent { color: var(--green); }
-  .cta-banner p { font-size: 13.5px; color: var(--gray); margin: 0; max-width: 44ch; }
-  .cta-banner a {
-    background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
-    font-size: 14px; padding: 13px 22px; border-radius: 999px; white-space: nowrap;
-  }
-  .cta-banner a:hover { background: var(--green-dark); }
-
-  .quick-wins h4 { font-size: 15px; margin: 0 0 14px; }
-  .quick-wins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 28px; }
-  .quick-win-card { border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
-  .quick-win-card .qw-title { font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
-  .quick-win-card .qw-detail { font-size: 12.5px; color: var(--gray); line-height: 1.5; }
-
-  .report-footer {
-    display: flex; justify-content: space-between; align-items: center; gap: 16px;
-    flex-wrap: wrap; padding-top: 20px; border-top: 1px solid var(--line);
-  }
-  .report-footer .disclaimer { font-size: 12px; color: var(--gray-soft); max-width: 56ch; line-height: 1.5; }
-  .report-footer .share-btn {
-    border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px;
-    font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
-  }
-  .report-footer .share-btn:hover { border-color: var(--gray-soft); }
-
-  @media (max-width: 720px) {
-    .stat-cards { grid-template-columns: repeat(2, 1fr); }
-    .stat-card { border-bottom: 1px solid var(--line); }
-    .overview-panel { grid-template-columns: 1fr; }
-    .report-hero { flex-direction: column; align-items: flex-start; }
-  }
-  @media (max-width: 480px) {
-    h1 { font-size: 26px; }
-    .form-row { flex-direction: column; }
-    #scan-btn { width: 100%; }
-    .stat-cards { grid-template-columns: 1fr 1fr; }
-  }
-</style>
-</head>
-<body>
-<div class="wrap">
-
-  <div id="hero-section">
-  <span class="hero-badge">✦ Ai Audit Tool by SEOzar</span>
-
-  <div class="hero-grid">
-    <div class="hero-left">
-      <h1>Audit Your Website for <span class="grad">Ai Visibility.</span></h1>
-      <p class="lede">
-        Analyze how ChatGPT, Claude, Gemini and Perplexity understand your website and
-        discover practical improvements to become Ai-ready.
-      </p>
-
-      <div class="search-pill">
-        <span class="link-ic">🔗</span>
-        <input type="text" id="url-input" placeholder="yourwebsite.com" />
-        <button id="scan-btn">Check My Site →</button>
-      </div>
-      <div class="assure">
-        <span>⚡ No sign-up needed</span>
-        <span>⏱ Whole-site scan in 20–30 seconds</span>
-        <span>🛡 Privacy-friendly &amp; secure</span>
-      </div>
-    </div>
-
-    <div class="hero-right">
-      <div class="ai-illus" aria-hidden="true">
-        <div class="win"><i></i><i></i><i></i></div>
-        <svg viewBox="0 0 480 380" fill="none" stroke="#2D3E8F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M197 178 H150 V88 H132" />
-          <path d="M283 178 H330 V88 H348" />
-          <path d="M197 204 H150 V312 H132" />
-          <path d="M283 204 H330 V312 H348" />
-          <circle cx="150" cy="178" r="4" fill="#2D3E8F" /><circle cx="330" cy="178" r="4" fill="#2D3E8F" />
-          <circle cx="150" cy="204" r="4" fill="#2D3E8F" /><circle cx="330" cy="204" r="4" fill="#2D3E8F" />
-          <path d="M222 147 V128 M240 147 V118 M258 147 V128" /><path d="M222 233 V252 M240 233 V262 M258 233 V252" />
-          <circle cx="222" cy="126" r="3.5" fill="#2D3E8F" /><circle cx="240" cy="116" r="3.5" fill="#2D3E8F" /><circle cx="258" cy="126" r="3.5" fill="#2D3E8F" />
-          <circle cx="222" cy="254" r="3.5" fill="#2D3E8F" /><circle cx="240" cy="264" r="3.5" fill="#2D3E8F" /><circle cx="258" cy="254" r="3.5" fill="#2D3E8F" />
-        </svg>
-        <div class="chip">Ai</div>
-        <div class="llm p1"><b></b>ChatGPT</div>
-        <div class="llm p2"><b></b>Claude</div>
-        <div class="llm p3"><b></b>Gemini</div>
-        <div class="llm p4"><b></b>Perplexity</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="why-section">
-    <div class="why-col">
-      <div class="sec-label">Why use SEOzar?</div>
-      <div class="tile-list">
-        <div class="tile-item"><span class="tile green">✓</span> Whole-Site Report (~30s)</div>
-        <div class="tile-item"><span class="tile blue">⚡</span> No Sign-up to Start</div>
-        <div class="tile-item"><span class="tile blue">📊</span> Detailed, Plain-English Insights</div>
-        <div class="tile-item"><span class="tile yellow">🎁</span> Get Free SEO Support from Our Team</div>
-      </div>
-    </div>
-    <div class="why-col">
-      <div class="sec-label">What you'll uncover</div>
-      <div class="tile-grid">
-        <div class="tile-item"><span class="tile purple">🤖</span> Ai Crawler Access</div>
-        <div class="tile-item"><span class="tile blue">📄</span> llms.txt Check</div>
-        <div class="tile-item"><span class="tile green">🗂</span> Structured Data</div>
-        <div class="tile-item"><span class="tile blue">H</span> Heading Structure</div>
-        <div class="tile-item"><span class="tile pink">❓</span> FAQ Content</div>
-        <div class="tile-item"><span class="tile teal">🏪</span> Business Clarity</div>
-      </div>
-    </div>
-  </div>
-
-  <div class="ov-card">
-    <div class="ov-main">
-      <div class="ov-head">
-        <span class="tile blue">📊</span>
-        <div><div class="ov-title">Ai Readiness Overview</div><div class="ov-sub">A snapshot of your website's Ai-readiness factors</div></div>
-        <span class="sample-pill">Sample</span>
-      </div>
-      <div class="ov-row"><span class="ov-dot pass">✓</span><span>Ai Crawler Access</span><span class="ov-track"><span class="ov-fill pass" style="display:block;width:100%"></span></span><span class="ov-tick">✓</span></div>
-      <div class="ov-row"><span class="ov-dot pass">✓</span><span>Structured Data</span><span class="ov-track"><span class="ov-fill pass" style="display:block;width:100%"></span></span><span class="ov-tick">✓</span></div>
-      <div class="ov-row"><span class="ov-dot warn">!</span><span>Content &amp; Headings</span><span class="ov-track"><span class="ov-fill warn" style="display:block;width:60%"></span></span><span></span></div>
-      <div class="ov-row"><span class="ov-dot pass">✓</span><span>Ai Layer Files (llms.txt, etc.)</span><span class="ov-track"><span class="ov-fill pass" style="display:block;width:100%"></span></span><span class="ov-tick">✓</span></div>
-      <div class="ov-row"><span class="ov-dot fail">✕</span><span>Firewall &amp; Access</span><span class="ov-track"><span class="ov-fill fail" style="display:block;width:20%"></span></span><span></span></div>
-    </div>
-    <div class="ov-stats">
-      <div class="ov-stat pass"><div class="num">5</div><div class="lbl">Passed Checks</div><span class="ic">✅</span></div>
-      <div class="ov-stat warn"><div class="num">2</div><div class="lbl">Improvements</div><span class="ic">⚠️</span></div>
-      <div class="ov-stat fail"><div class="num">1</div><div class="lbl">Critical Issue</div><span class="ic">❌</span></div>
-      <div class="ov-stat score"><div class="num">75/100</div><div class="lbl">Ai Readiness Score</div><span class="ic">🎯</span></div>
-    </div>
-    <div class="ov-cta">
-      <strong>✨ Ready to fix what's <span class="accent">holding your site back</span>?</strong>
-      <a href="https://seozar.co/contact-us/" target="_blank" rel="noopener">Get My Ai Visibility Plan →</a>
-    </div>
-  </div>
-
-</div>
-
-  <div id="error"></div>
-
-  <div id="loading">
-    <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
-    <div id="loading-text">Checking AI crawler access and site files…</div>
-  </div>
-
-  <div id="gate">
-    <h3>Your report is ready.</h3>
-    <p>Enter your email to see the full breakdown — we'll also send you a copy so you don't lose it.</p>
-    <div class="form-row">
-      <input type="email" id="lead-email" placeholder="you@business.com" />
-      <button id="unlock-btn">Show my report</button>
-    </div>
-  </div>
-
-  <div id="report"></div>
-
-</div>
-
-<script>
-(function() {
-  const DOMAIN_URL = '/.netlify/functions/ai-audit-domain';
-  const PAGE_URL = '/.netlify/functions/ai-audit-page';
-  const SHEET_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwMHY6Us6ZSXPS2r-pO32n3QuDdh-lZdShyki4UUUj26_kPfB6e5lXURjhlRzV5ssIN/exec';
-  const DAILY_LIMIT = 3;       // full-site scans per visitor per day (soft limit, stored in the browser)
-  const CONCURRENCY = 3;       // pages scanned at the same time
-
-  const urlInput = document.getElementById('url-input');
-  const scanBtn = document.getElementById('scan-btn');
-  const heroSection = document.getElementById('hero-section');
-  const loading = document.getElementById('loading');
-  const loadingText = document.getElementById('loading-text');
-  const barFill = document.getElementById('bar-fill');
-  const errorBox = document.getElementById('error');
-  const gate = document.getElementById('gate');
-  const unlockBtn = document.getElementById('unlock-btn');
-  const leadEmail = document.getElementById('lead-email');
-  const reportBox = document.getElementById('report');
-
-  let pendingResult = null;
-  let pendingUrl = null;
-
-  // SCORING-START
-  // One combined list of checks. 'scope: site' checks run once for the whole website;
-  // 'scope: pages' checks run on every scanned page and are combined into a single result.
-  //   mode 'any'   = one good page is enough to show the site has it (e.g. business entity schema)
-  //   mode 'ratio' = score scales with how many pages pass
-  // Points add up to 100. Pass = full points, Warn = half, Fail = 0.
-  const CHECKS = [
-    { key: 'entity', scope: 'pages', mode: 'any', points: 13, label: 'Business entity schema',
-      why: 'AI can tell exactly who you are, what you do and where you operate, so it can name you correctly in answers.',
-      fix: 'Add Organization or LocalBusiness schema (Yoast or Rank Math can do this) so AI can identify your business.',
-      warn: 'Your pages have some schema, but nothing that marks you as an Organization or LocalBusiness.' },
-    { key: 'faq', scope: 'pages', mode: 'any', points: 10, label: 'FAQ content & FAQPage schema',
-      why: 'Question-and-answer content marked up as FAQPage is easy for AI to quote directly.',
-      fix: 'Add a Q&A section with FAQPage schema to your key pages.',
-      warn: 'You have question-style headings but no FAQPage schema. Marking them up makes them much easier for AI to quote.' },
-    { key: 'headings', scope: 'pages', mode: 'ratio', points: 9, label: 'Heading structure',
-      phrase: 'have one clear H1 and organized H2 sections',
-      why: 'AI can pull clean sections and answers out of well-organized pages.',
-      fix: 'Give every page one H1 and break the content into H2 sections.' },
-    { key: 'desc', scope: 'pages', mode: 'ratio', points: 7, label: 'Business description (meta description)',
-      phrase: 'have a clear description',
-      why: 'AI relies on direct, factual descriptions to summarize each page accurately.',
-      fix: 'Write a clear 70-160 character description for every page that says what it offers.' },
-    { key: 'author', scope: 'pages', mode: 'ratio', points: 6, label: 'Author / Person schema',
-      phrase: 'name their author in schema',
-      why: 'Named authors are a trust signal AI weighs when deciding what to cite.',
-      fix: 'Add Article schema with a named author to your blog posts and articles.' },
-    { key: 'lastmod', scope: 'pages', mode: 'ratio', points: 6, label: 'Content freshness (date signals)',
-      phrase: 'show an update date from the last 12 months',
-      why: 'AI tends to prefer recently updated content when choosing what to cite.',
-      fix: 'Show visible updated dates and add dateModified to your schema, and refresh older pages.' },
-    { key: 'breadcrumb', scope: 'pages', mode: 'ratio', points: 5, label: 'Breadcrumb schema',
-      phrase: 'have breadcrumb schema',
-      why: 'It shows AI how your pages fit together in your site structure.',
-      fix: 'Add breadcrumb navigation with BreadcrumbList schema to your inner pages.' },
-    { key: 'lang', scope: 'pages', mode: 'ratio', points: 3, label: 'Language declaration',
-      phrase: 'declare their language',
-      why: 'Helps AI process your content in the right language.',
-      fix: 'Add lang="en" (or your language) to the <html> tag.' },
-    { key: 'alt', scope: 'pages', mode: 'ratio', points: 3, label: 'Image alt text',
-      phrase: 'have alt text on their images',
-      why: 'Helps AI understand your images, not just your text.',
-      fix: 'Add short, descriptive alt text to your images.' },
-    { key: 'hreflang', scope: 'pages', mode: 'ratio', points: 3, multiLangOnly: true, label: 'hreflang tags',
-      phrase: 'declare their language and region versions',
-      why: 'Tells AI which language or region version of a page to use.',
-      fix: 'Add hreflang tags linking each page to its translated versions.' },
-    { key: 'firewall', scope: 'site', points: 8 },
-    { key: 'gptbot', scope: 'site', points: 5 },
-    { key: 'claudebot', scope: 'site', points: 5 },
-    { key: 'perplexitybot', scope: 'site', points: 5 },
-    { key: 'google-extended', scope: 'site', points: 5 },
-    { key: 'llms', scope: 'site', points: 4 },
-    { key: 'sitemap', scope: 'site', points: 4 },
-    { key: 'llmsfull', scope: 'site', points: 2 }
-  ];
-
-  // Shown for information only. They never change the score.
-  const INFO_PAGE_CHECKS = [
-    { key: 'canonical', label: 'Canonical tag', phrase: 'have a canonical tag', note: 'Mostly an SEO signal, so it is not scored here.' },
-    { key: 'og', label: 'Open Graph tags', phrase: 'have complete Open Graph tags', note: 'Controls link previews on social platforms, so it is not scored here.' }
-  ];
-
-  const FRAC = { pass: 1, warn: 0.5, fail: 0 };
-
-  function aggregatePages(check, pageResults) {
-    const vals = [];
-    pageResults.forEach(p => {
-      const r = p.results && p.results[check.key];
-      if (r && r.status && r.status !== 'na') vals.push({ url: p.url, status: r.status });
-    });
-    if (!vals.length) return null;
-    const passN = vals.filter(v => v.status === 'pass').length;
-    const warnN = vals.filter(v => v.status === 'warn').length;
-    const n = vals.length;
-    let frac, status;
-    if (check.mode === 'any') {
-      status = passN > 0 ? 'pass' : warnN > 0 ? 'warn' : 'fail';
-      frac = FRAC[status];
-    } else {
-      frac = (passN + 0.5 * warnN) / n;
-      status = frac === 1 ? 'pass' : frac >= 0.5 ? 'warn' : 'fail';
-    }
-    return { vals, n, passN, warnN, frac, status };
-  }
-
-  function computeScore(siteItems, pageResults, multiLang) {
-    const rows = [];
-    const extras = [];
-    const siteByKey = {};
-    (siteItems || []).forEach(i => { siteByKey[i.key] = i; });
-
-    CHECKS.forEach(c => {
-      if (c.multiLangOnly && !multiLang) return;
-      if (c.scope === 'site') {
-        const it = siteByKey[c.key];
-        if (!it) return;
-        if (!(it.status in FRAC)) {            // 'na' (could not be tested / skipped)
-          extras.push({ key: it.key, status: 'info', label: it.label, detail: it.detail, tag: it.tag || 'Not tested' });
-          return;
-        }
-        rows.push({ key: c.key, scope: 'site', status: it.status, label: it.label, detail: it.detail, tag: it.tag,
-                    points: c.points, earned: c.points * FRAC[it.status], fix: it.detail });
+    // ---------- AI crawler access (robots.txt) ----------
+    const robotsText = robotsR.ok ? robotsR.text : '';
+    const groups = parseRobots(robotsText);
+    const bots = [
+      { key: 'gptbot', agent: 'gptbot', label: 'GPTBot (ChatGPT)' },
+      { key: 'claudebot', agent: 'claudebot', label: 'ClaudeBot (Claude)' },
+      { key: 'perplexitybot', agent: 'perplexitybot', label: 'PerplexityBot' },
+      { key: 'google-extended', agent: 'google-extended', label: 'Google-Extended (AI Overviews)' }
+    ];
+    for (const bot of bots) {
+      const st = checkBotAccess(groups, bot.agent);
+      if (st === 'blocked') {
+        items.push(item(bot.key, 'fail', `${bot.label} is blocked`, `Your robots.txt blocks ${bot.label} from your whole site, so it can't read any of your pages.`, 'Blocked'));
+      } else if (st === 'partial') {
+        items.push(item(bot.key, 'warn', `${bot.label} has partial restrictions`, `Some content sections of your site are off-limits to ${bot.label}.`, 'Partial'));
       } else {
-        const agg = aggregatePages(c, pageResults);
-        if (!agg) return;                      // not applicable to any scanned page
-        let line;
-        if (c.mode === 'any') {
-          line = agg.passN > 0 ? 'Found on ' + agg.passN + ' of ' + agg.n + ' pages scanned.'
-               : agg.warnN > 0 ? 'Partly found on ' + agg.warnN + ' of ' + agg.n + ' pages scanned.'
-               : 'Not found on any of the ' + agg.n + ' pages scanned.';
-        } else {
-          line = agg.passN + ' of ' + agg.n + ' pages ' + c.phrase + '.';
+        items.push(item(bot.key, 'pass', `${bot.label} can access your site`, `Nothing in your robots.txt stops ${bot.label} from reading your content.`, 'Allowed'));
+      }
+    }
+
+    // ---------- llms.txt / llms-full.txt ----------
+    const hasLlms = isPlainText(llmsR);
+    const hasLlmsFull = isPlainText(llmsFullR);
+    if (hasLlms) {
+      items.push(item('llms', 'pass', 'llms.txt found', 'You have a dedicated file that summarizes your site for AI systems. It is still a new and uncommon standard.', 'Found'));
+    } else {
+      items.push(item('llms', 'warn', 'No llms.txt file', 'A new, still-emerging standard. Not urgent, but a short llms.txt helps AI tools understand your business quickly.', 'Not found'));
+    }
+    if (hasLlmsFull) {
+      items.push(item('llmsfull', 'pass', 'llms-full.txt found', 'You also publish the extended version with fuller content for AI systems.', 'Found'));
+    } else if (hasLlms) {
+      items.push(item('llmsfull', 'warn', 'No llms-full.txt file', 'You have llms.txt but not the extended llms-full.txt, which gives AI tools your fuller content in one place.', 'Not found'));
+    } else {
+      items.push(item('llmsfull', 'na', 'llms-full.txt', 'Skipped because there is no llms.txt yet.', 'Skipped'));
+    }
+
+    // ---------- Sitemap ----------
+    let sm = [smA, smB, smC].find(isSitemap);
+    if (!sm && remaining() > 1500) {
+      const declared = declaredSitemaps(robotsText).slice(0, 2);
+      if (declared.length) {
+        const rs = await Promise.all(declared.map(u => fetchRaw(u, { timeout: tmo(3000) })));
+        sm = rs.find(isSitemap);
+      }
+    }
+    let entries = [];
+    let sitemapCount = null;
+    let indexCount = null;
+    if (sm) {
+      if (/<sitemapindex/i.test(sm.text)) {
+        const kids = locs(sm.text);
+        indexCount = kids.length;
+        const chosen = rankChildren(kids).filter(u => safeHttp(u)).slice(0, 2);
+        if (chosen.length && remaining() > 1500) {
+          const rs = await Promise.all(chosen.map(u => fetchRaw(u, { timeout: tmo(3500) })));
+          rs.forEach(r => { if (isSitemap(r)) entries.push(...sitemapEntries(r.text)); });
         }
-        const tail = agg.status === 'pass' ? c.why : (agg.status === 'warn' && c.warn ? c.warn : c.fix);
-        rows.push({ key: c.key, scope: 'pages', status: agg.status, label: c.label, detail: line + ' ' + tail,
-                    tag: agg.passN + ' of ' + agg.n + ' pages', points: c.points, earned: c.points * agg.frac,
-                    fix: c.fix, pageVals: agg.vals });
+      } else {
+        entries = sitemapEntries(sm.text);
+        sitemapCount = entries.length;
       }
-    });
-
-    let total = 0, earned = 0;
-    rows.forEach(r => { total += r.points; earned += r.earned; });
-    let pct = total ? Math.round((earned / total) * 100) : 0;
-
-    // Safety cap: a site that blocks both ChatGPT and Claude cannot score well.
-    const g = siteByKey['gptbot'], cl = siteByKey['claudebot'];
-    const capped = !!(g && cl && g.status === 'fail' && cl.status === 'fail' && pct > 40);
-    if (capped) pct = 40;
-
-    // Unscored extras
-    INFO_PAGE_CHECKS.forEach(ic => {
-      const agg = aggregatePages({ key: ic.key, mode: 'ratio' }, pageResults);
-      if (!agg) return;
-      extras.push({ key: ic.key, status: 'info', label: ic.label,
-                    detail: agg.passN + ' of ' + agg.n + ' pages ' + ic.phrase + '. ' + ic.note,
-                    tag: agg.passN + ' of ' + agg.n + ' pages' });
-    });
-    if (!multiLang) {
-      extras.push({ key: 'hreflang-note', status: 'info', label: 'hreflang tags', detail: 'Your site looks single-language, so hreflang is not needed and does not affect your score.', tag: 'Not needed' });
     }
-    if (siteByKey['ailayer']) {
-      const a = siteByKey['ailayer'];
-      extras.push({ key: 'ailayer', status: 'info', label: a.label, detail: a.detail, tag: a.tag });
+    if (sm) {
+      const detail = indexCount !== null
+        ? `Found a sitemap index listing ${indexCount} sitemaps. AI crawlers use it to discover every page on your site.`
+        : `Found, listing ${sitemapCount} page${sitemapCount === 1 ? '' : 's'}. AI crawlers use it to discover every page on your site.`;
+      items.push(item('sitemap', 'pass', 'Sitemap found', detail, 'Found'));
+    } else {
+      items.push(item('sitemap', 'fail', 'No sitemap found', 'Without a sitemap, AI crawlers may only ever see your homepage and miss the rest of your site.', 'Not found'));
     }
 
-    const order = { fail: 0, warn: 1, pass: 2 };
-    rows.sort((a, b) => order[a.status] - order[b.status] || b.points - a.points);
+    // ---------- Firewall / CDN bot-block test ----------
+    items.push(firewallItem(homeBrowser, { gptbot: homeGpt, claudebot: homeClaude, perplexitybot: homePerp }));
 
-    const counts = { pass: 0, warn: 0, fail: 0 };
-    rows.forEach(r => { counts[r.status]++; });
-
-    return { pct, capped, rows, extras, counts, pageCount: pageResults.length };
-  }
-  // SCORING-END
-
-  // ---------------------------------------------------------------- helpers
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  }
-
-  function normalize(raw) {
-    let u = raw.trim();
-    if (!u) return null;
-    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
-    try { return new URL(u); } catch (e) { return null; }
-  }
-
-  function showError(msg) {
-    errorBox.textContent = msg;
-    errorBox.classList.add('active');
-  }
-
-  function setProgress(text, pct) {
-    loadingText.textContent = text;
-    barFill.style.width = Math.max(3, Math.min(100, pct)) + '%';
-  }
-
-  async function postJson(url, body, timeoutMs) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal
-      });
-      if (!res.ok) throw new Error('bad-response');
-      return await res.json();
-    } finally {
-      clearTimeout(timer);
+    // ---------- AI layer files (informational, not scored) ----------
+    const skillsOk = isJsonObject(skillsR);
+    const pluginOk = isJsonObject(pluginR);
+    if (skillsOk || pluginOk) {
+      items.push(item('ailayer', 'info', 'AI layer files found', `Found ${[skillsOk ? '/skills.json' : null, pluginOk ? '/.well-known/ai-plugin.json' : null].filter(Boolean).join(' and ')}. These machine-readable files tell AI agents what your site or business can do. Very few sites have them yet.`, 'Found'));
+    } else {
+      items.push(item('ailayer', 'info', 'AI layer files (bonus)', 'No /skills.json or /.well-known/ai-plugin.json found. These are very new and almost no sites have them, so this is not counted in your score.', 'Not found'));
     }
-  }
 
-  async function scanPage(p) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    // ---------- Page discovery ----------
+    const pages = pickPages(origin, entries, homeBrowser.ok ? homeBrowser.text : '');
+
+    // ---------- Multi-language detection (for the hreflang check) ----------
+    const prefixes = new Set();
+    for (const e of entries) {
       try {
-        const r = await postJson(PAGE_URL, { url: p.url, lastmod: p.lastmod || '' }, 15000);
-        if (r && r.ok) return r;
-      } catch (e) { /* retry once */ }
-      if (attempt < 2) await new Promise(res => setTimeout(res, 500));
+        const seg = new URL(e.url).pathname.split('/')[1];
+        if (seg && LANG_CODES.has(seg.toLowerCase())) prefixes.add(seg.toLowerCase());
+      } catch (e2) { /* ignore */ }
     }
-    return null;
-  }
 
-  async function runPool(list, limit, worker) {
-    let next = 0;
-    async function runner() {
-      while (next < list.length) {
-        const idx = next++;
-        await worker(list[idx], idx);
+    return json(200, { items, pages, multiLang: prefixes.size >= 2 });
+  } catch (e) {
+    return json(502, { error: 'Could not analyze this site.' });
+  }
+};
+
+// ---------------------------------------------------------------- helpers
+
+function json(statusCode, obj) {
+  return { statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
+}
+function item(key, status, label, detail, tag) { return { key, status, label, detail, tag: tag || '' }; }
+
+function isBlockedHost(host) {
+  const h = String(host || '').toLowerCase();
+  if (!h || h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  if (h.includes(':') || h.startsWith('[')) return true; // IPv6 literals
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = +m[1], b = +m[2];
+    if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224) return true;
+  }
+  if (!h.includes('.')) return true;
+  return false;
+}
+function safeHttp(u) {
+  try { const x = new URL(u); return /^https?:$/.test(x.protocol) && !isBlockedHost(x.hostname); } catch (e) { return false; }
+}
+
+async function fetchRaw(url, opts) {
+  const { ua = BROWSER_UA, timeout = 4500, maxChars = 1500000 } = opts || {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: { 'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' }
+    });
+    const text = await res.text();
+    const hdr = {};
+    res.headers.forEach((v, k) => { hdr[k.toLowerCase()] = v; });
+    return { ok: res.ok, status: res.status, hdr, text: text.slice(0, maxChars) };
+  } catch (e) {
+    return { ok: false, status: 0, hdr: {}, text: '', error: true };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isPlainText(r) {
+  return !!(r && r.ok && r.text.trim().length > 0 && !/^\s*<(!doctype|html)/i.test(r.text));
+}
+function isJsonObject(r) {
+  if (!isPlainText(r)) return false;
+  try { const v = JSON.parse(r.text); return v && typeof v === 'object'; } catch (e) { return false; }
+}
+function isSitemap(r) {
+  return !!(r && r.ok && /<urlset|<sitemapindex/i.test(r.text));
+}
+
+// ---- robots.txt
+function parseRobots(content) {
+  const groups = [];
+  let current = null;
+  for (const raw of String(content || '').split(/\r?\n/)) {
+    const line = raw.split('#')[0].trim();
+    if (!line) continue;
+    const idx = line.indexOf(':');
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim().toLowerCase();
+    const value = line.slice(idx + 1).trim();
+    if (key === 'user-agent') {
+      if (!current || current.started) {
+        current = { agents: [], disallow: [], allow: [], started: false };
+        groups.push(current);
       }
-    }
-    await Promise.all(Array.from({ length: Math.min(limit, list.length) }, runner));
-  }
-
-  // Soft daily limit (stored in this browser only)
-  function todayKey() { return new Date().toISOString().slice(0, 10); }
-  function scansToday() {
-    try {
-      const d = JSON.parse(localStorage.getItem('seozar_ai_scans') || '{}');
-      return d.day === todayKey() ? (d.count || 0) : 0;
-    } catch (e) { return 0; }
-  }
-  function recordScan() {
-    try { localStorage.setItem('seozar_ai_scans', JSON.stringify({ day: todayKey(), count: scansToday() + 1 })); } catch (e) { /* ignore */ }
-  }
-
-  function reportHeight() {
-    try { parent.postMessage({ type: 'seozar-ai-height', height: document.documentElement.scrollHeight }, '*'); } catch (e) { /* ignore */ }
-  }
-
-  // ---------------------------------------------------------------- scan flow
-  async function scan() {
-    const parsed = normalize(urlInput.value);
-    errorBox.classList.remove('active');
-    gate.classList.remove('active');
-    reportBox.classList.remove('active');
-    reportBox.innerHTML = '';
-
-    if (!parsed) {
-      showError('That doesn\'t look like a valid website address. Try something like "example.com".');
-      return;
-    }
-    if (scansToday() >= DAILY_LIMIT) {
-      showError('You\'ve used today\'s ' + DAILY_LIMIT + ' free full-site scans. Come back tomorrow, or message our team and we\'ll run one for you.');
-      return;
-    }
-
-    scanBtn.disabled = true;
-    scanBtn.textContent = 'Checking…';
-    heroSection.style.display = 'none';
-    loading.classList.add('active');
-    setProgress('Checking AI crawler access and site files…', 5);
-    setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
-
-    try {
-      const domain = await postJson(DOMAIN_URL, { url: parsed.origin }, 20000);
-      const pages = (domain.pages || []).slice(0, 10);
-      if (!pages.length) throw new Error('no-pages');
-
-      const results = new Array(pages.length).fill(null);
-      let done = 0;
-      setProgress('Scanning page 1 of ' + pages.length + '…', 12);
-      await runPool(pages, CONCURRENCY, async (p, idx) => {
-        results[idx] = await scanPage(p);
-        done++;
-        setProgress('Scanning page ' + Math.min(done + 1, pages.length) + ' of ' + pages.length + '…', 12 + (done / pages.length) * 85);
-      });
-
-      const okPages = results.filter(Boolean);
-      if (!okPages.length) throw new Error('no-readable-pages');
-
-      setProgress('Putting your report together…', 98);
-      const scored = computeScore(domain.items, okPages, !!domain.multiLang);
-      scored.attempted = pages.length;
-      scored.pageUrls = okPages.map(p => p.url);
-
-      recordScan();
-      loading.classList.remove('active');
-      pendingResult = scored;
-      pendingUrl = parsed.href;
-      gate.classList.add('active');
-      reportHeight();
-    } catch (e) {
-      loading.classList.remove('active');
-      heroSection.style.display = '';
-      showError('We couldn\'t check that site just now. It may be blocking automated checks, or the site may be temporarily down. Please try again in a moment.');
-    } finally {
-      scanBtn.disabled = false;
-      scanBtn.textContent = 'Check My Site →';
+      current.agents.push(value.toLowerCase());
+    } else if (key === 'disallow' && current) {
+      current.disallow.push(value);
+      current.started = true;
+    } else if (key === 'allow' && current) {
+      current.allow.push(value);
+      current.started = true;
     }
   }
+  return groups;
+}
+function declaredSitemaps(content) {
+  const out = [];
+  for (const line of String(content || '').split(/\r?\n/)) {
+    const m = line.match(/^\s*sitemap\s*:\s*(\S+)/i);
+    if (m && safeHttp(m[1]) && !out.includes(m[1])) out.push(m[1]);
+  }
+  return out;
+}
+// Paths that are normal to hide from everyone (admin, cart, login...). They don't count as "restricting AI".
+const IGNORABLE = /^\/(wp-admin|wp-login\.php|wp-includes|wp-json|cgi-bin|admin|cart|checkout|my-account|account|login|signin|search|tmp|private|cdn-cgi)(\/|$|\?)/i;
+function checkBotAccess(groups, bot) {
+  let applicable = groups.filter(g => g.agents.includes(bot));
+  if (!applicable.length) applicable = groups.filter(g => g.agents.includes('*'));
+  if (!applicable.length) return 'allowed';
+  const disallow = [].concat(...applicable.map(g => g.disallow)).map(d => d.trim()).filter(Boolean);
+  const allow = [].concat(...applicable.map(g => g.allow)).map(a => a.trim()).filter(Boolean);
+  if (disallow.includes('/')) return allow.some(a => a !== '/') ? 'partial' : (allow.includes('/') ? 'allowed' : 'blocked');
+  const meaningful = disallow.filter(d => !IGNORABLE.test(d) && !/[?*]/.test(d));
+  return meaningful.length ? 'partial' : 'allowed';
+}
 
-  // ---------------------------------------------------------------- report
-  function iconChar(status) {
-    return status === 'pass' ? '✓' : status === 'warn' ? '!' : status === 'fail' ? '✕' : 'i';
+// ---- sitemap parsing
+function decodeXml(s) { return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'"); }
+function locs(xml) {
+  const out = [];
+  const re = /<loc>\s*([^<]+?)\s*<\/loc>/gi;
+  let m;
+  while ((m = re.exec(xml)) && out.length < 5000) out.push(decodeXml(m[1]));
+  return out;
+}
+function sitemapEntries(xml) {
+  const out = [];
+  const re = /<url>([\s\S]*?)<\/url>/gi;
+  let m;
+  while ((m = re.exec(xml)) && out.length < 5000) {
+    const loc = (m[1].match(/<loc>\s*([^<]+?)\s*<\/loc>/i) || [])[1];
+    if (!loc) continue;
+    const lm = (m[1].match(/<lastmod>\s*([^<]+?)\s*<\/lastmod>/i) || [])[1];
+    out.push({ url: decodeXml(loc), lastmod: lm || '' });
+  }
+  return out;
+}
+function rankChildren(kids) {
+  const score = (u) => {
+    const l = u.toLowerCase();
+    if (/(image|video|author|tag|category|taxonom|attachment)/.test(l)) return 9;
+    if (/page/.test(l)) return 0;
+    if (/post|blog|article/.test(l)) return 1;
+    if (/product|service/.test(l)) return 2;
+    return 3;
+  };
+  return kids.map((u, i) => ({ u, i, s: score(u) })).sort((a, b) => a.s - b.s || a.i - b.i).map(x => x.u);
+}
+
+// ---- page discovery
+function pickPages(origin, entries, homeHtml) {
+  const baseHost = new URL(origin).hostname.replace(/^www\./, '').toLowerCase();
+  const seen = new Set(['/']);
+  const cand = [];
+  const add = (href, lastmod) => {
+    let u;
+    try { u = new URL(href, origin + '/'); } catch (e) { return; }
+    if (!/^https?:$/.test(u.protocol)) return;
+    if (u.hostname.replace(/^www\./, '').toLowerCase() !== baseHost) return;
+    if (SKIP_EXT.test(u.pathname)) return;
+    const key = u.pathname.replace(/\/+$/, '') || '/';
+    if (seen.has(key)) return;
+    seen.add(key);
+    cand.push({ url: origin + u.pathname, lastmod: lastmod || '', key });
+  };
+  entries.forEach(e => add(e.url, e.lastmod));
+
+  // Fallback / top-up: internal links found on the homepage
+  if (cand.length < MAX_PAGES - 1 && homeHtml) {
+    const links = [];
+    const re = /<a\s[^>]*href=["']([^"'#]+)["']/gi;
+    let m;
+    while ((m = re.exec(homeHtml)) && links.length < 300) links.push(m[1]);
+    const depth = (h) => { try { return new URL(h, origin + '/').pathname.split('/').filter(Boolean).length; } catch (e) { return 99; } };
+    links.map((h, i) => ({ h, i, d: depth(h) })).sort((a, b) => a.d - b.d || a.i - b.i).forEach(x => add(x.h, ''));
   }
 
-  function scoreMeta(pct) {
-    if (pct >= 80) return { label: 'AI-ready', color: 'var(--green)', tagBg: 'var(--green-soft)', tagColor: 'var(--green-dark)' };
-    if (pct >= 50) return { label: 'Needs work', color: 'var(--amber)', tagBg: 'var(--amber-soft)', tagColor: 'var(--amber)' };
-    return { label: 'Hard for AI', color: 'var(--red)', tagBg: 'var(--red-soft)', tagColor: 'var(--red)' };
-  }
-
-  function fmtPts(n) { return (Math.round(n * 10) / 10).toString(); }
-
-  function pathOf(u) {
-    try { const x = new URL(u); return (x.pathname || '/') ; } catch (e) { return u; }
-  }
-
-  function rowHtml(r) {
-    const pts = (r.points !== undefined)
-      ? '<span class="check-pts">' + fmtPts(r.earned) + '/' + r.points + ' pts</span>' : '';
-    const pages = (r.pageVals && r.pageVals.length > 1)
-      ? '<details class="pg-details"><summary>View pages</summary><ul>' +
-        r.pageVals.map(v => '<li><span class="pg-ic ' + v.status + '">' + iconChar(v.status) + '</span>' + esc(pathOf(v.url)) + '</li>').join('') +
-        '</ul></details>' : '';
-    return '<div class="check-item">' +
-      '<div class="check-left"><div class="check-icon ' + r.status + '">' + iconChar(r.status) + '</div>' +
-      '<div><div class="check-title">' + esc(r.label) + '</div><div class="check-detail">' + esc(r.detail) + '</div>' + pages + '</div></div>' +
-      '<div class="check-right">' + (r.tag ? '<span class="check-tag ' + r.status + '">' + esc(r.tag) + '</span>' : '') + pts + '</div>' +
-      '</div>';
-  }
-
-  function renderReport(url, result, pageList, email) {
-    const meta = scoreMeta(result.pct);
-    const r = 74;
-    const circumference = 2 * Math.PI * r;
-    const offset = circumference - (result.pct / 100) * circumference;
-    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-    const quickWins = result.rows.filter(x => x.status !== 'pass')
-      .sort((a, b) => (b.points - b.earned) - (a.points - a.earned)).slice(0, 3);
-    const pagesNote = result.pageCount + ' page' + (result.pageCount === 1 ? '' : 's') + ' scanned' +
-      (result.attempted > result.pageCount ? ' (' + (result.attempted - result.pageCount) + ' could not be read)' : '');
-
-    reportBox.innerHTML = `
-      ${email ? '<div class="email-note">📧 We\'re emailing a copy of this report to <strong>' + esc(email) + '</strong>. It usually arrives within a minute. If you don\'t see it, check your spam folder.</div>' : ''}
-      <div class="report-topbar">
-        <div class="report-brand">
-          <span class="mark">●</span>
-          <strong>SEOZAR</strong>
-          <span>Free AI Audit Tool</span>
-        </div>
-        <div class="report-actions">
-          <button class="btn-outline" id="download-btn">Download Report</button>
-          <button class="btn-solid" id="audit-another-btn">Audit Another Site</button>
-        </div>
-      </div>
-
-      <div class="report-hero">
-        <div class="report-hero-text">
-          <span class="badge-pill">AUDIT COMPLETED · ${esc(dateStr)}</span>
-          <h2>Whole-Website AI Readiness Report is <span class="accent">Ready!</span> 🚀</h2>
-          <p>Here's how readable your website is to AI systems like ChatGPT, Claude, and Perplexity, based on site-wide checks plus ${esc(pagesNote)}.</p>
-          <div class="report-url-row">
-            <span>${esc(url)}</span>
-            <button id="reaudit-btn">Re-audit this site</button>
-          </div>
-        </div>
-        <div class="gauge-wrap">
-          <svg width="168" height="168" viewBox="0 0 168 168">
-            <circle cx="84" cy="84" r="${r}" stroke="#E4E7EC" stroke-width="14" fill="none" />
-            <circle cx="84" cy="84" r="${r}" stroke="${meta.color}" stroke-width="14" fill="none"
-              stroke-linecap="round" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" />
-          </svg>
-          <div class="gauge-center">
-            <div class="gauge-num" style="color:${meta.color}">${result.pct}</div>
-            <div class="gauge-of">out of 100</div>
-            <span class="gauge-tag" style="background:${meta.tagBg};color:${meta.tagColor}">${meta.label}</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="stat-cards">
-        <div class="stat-card">
-          <div class="stat-icon pass">✓</div>
-          <div><strong>${result.counts.pass}</strong><small>Passed Checks</small></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon warn">!</div>
-          <div><strong>${result.counts.warn}</strong><small>Improvements</small></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon fail">✕</div>
-          <div><strong>${result.counts.fail}</strong><small>Critical Issues</small></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon score">↗</div>
-          <div><strong>${result.pct}/100</strong><small>AI Readiness Score</small></div>
-        </div>
-      </div>
-
-      <div class="overview-panel">
-        <div class="overview-side">
-          <div class="trophy">${result.pct >= 80 ? '🏆' : result.pct >= 50 ? '🔧' : '⚠️'}</div>
-          <strong>${result.pct >= 80 ? 'Good Work!' : result.pct >= 50 ? 'Almost There' : 'Needs Attention'}</strong>
-          <p>${result.pct >= 80 ? 'Your website is in good shape for AI. Focus on the improvements to make it even stronger.' : 'Your site has real opportunities to become easier for AI to read and cite. Fixing the items below can make a big difference.'}</p>
-        </div>
-        <div class="overview-list">
-          <h3>Audit Overview</h3>
-          <p>Every check is weighted by its impact on AI visibility. Points add up to 100.</p>
-          ${result.capped ? '<div class="cap-note">Your score is capped at 40 because both GPTBot and ClaudeBot are blocked. AI cannot read your site until that is fixed.</div>' : ''}
-          ${result.rows.map(rowHtml).join('')}
-          ${result.extras.length ? '<div class="extras-title">Extra signals (not scored)</div>' + result.extras.map(rowHtml).join('') : ''}
-          <details class="pg-details scanned-pages"><summary>Pages we scanned (${result.pageCount})</summary><ul>
-            ${pageList.map(u => '<li>' + esc(u) + '</li>').join('')}
-          </ul></details>
-        </div>
-      </div>
-
-      <div class="cta-banner">
-        <div>
-          <h3>Ready to fix what's <span class="accent">holding your AI visibility back</span>?</h3>
-          <p>Get a personalized AI-visibility roadmap from our experts and get found by AI search tools too.</p>
-        </div>
-        <a href="https://seozar.co/contact-us/" target="_blank" rel="noopener">Get My AI Visibility Plan →</a>
-      </div>
-
-      ${quickWins.length ? `
-      <div class="quick-wins">
-        <h4>💡 Quick Wins for You</h4>
-        <div class="quick-wins-grid">
-          ${quickWins.map(q => `
-            <div class="quick-win-card">
-              <div class="qw-title">${esc(q.label)}</div>
-              <div class="qw-detail">${esc(q.fix)}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>` : ''}
-
-      <div class="report-footer">
-        <div class="disclaimer">⚠ Disclaimer: This is an automated readability check of a sample of up to 10 pages. It doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
-        <button class="share-btn" id="copy-link-btn">Copy report link</button>
-      </div>
-    `;
-    reportBox.classList.add('active');
-    reportBox.querySelectorAll('details').forEach(d => d.addEventListener('toggle', reportHeight));
-    reportHeight();
-
-    document.getElementById('download-btn').addEventListener('click', () => window.print());
-    document.getElementById('audit-another-btn').addEventListener('click', () => {
-      reportBox.classList.remove('active');
-      reportBox.innerHTML = '';
-      heroSection.style.display = '';
-      urlInput.value = '';
-      urlInput.focus();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      reportHeight();
-    });
-    document.getElementById('reaudit-btn').addEventListener('click', () => {
-      urlInput.value = url;
-      scan();
-    });
-    document.getElementById('copy-link-btn').addEventListener('click', (e) => {
-      navigator.clipboard.writeText(window.location.href).then(() => {
-        e.target.textContent = 'Copied!';
-        setTimeout(() => { e.target.textContent = 'Copy report link'; }, 1800);
-      });
-    });
-  }
-
-  async function unlock() {
-    const email = leadEmail.value.trim();
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-    if (!email || !emailPattern.test(email)) {
-      showError('Please enter a valid email address (like name@example.com) to see your report.');
-      return;
+  // Spread across sections: take one page per top-level folder in turns
+  const groups = new Map();
+  cand.forEach(c => {
+    const seg = c.key.split('/')[1] || '';
+    if (!groups.has(seg)) groups.set(seg, []);
+    groups.get(seg).push(c);
+  });
+  const picked = [];
+  const lists = Array.from(groups.values());
+  for (let round = 0; picked.length < MAX_PAGES - 1; round++) {
+    let any = false;
+    for (const l of lists) {
+      if (l[round]) { picked.push(l[round]); any = true; if (picked.length >= MAX_PAGES - 1) break; }
     }
-    errorBox.classList.remove('active');
-
-    if (SHEET_WEBHOOK_URL && SHEET_WEBHOOK_URL.indexOf('PASTE_') === -1) {
-      fetch(SHEET_WEBHOOK_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tool: 'ai',
-          email: email,
-          website: pendingUrl,
-          score: pendingResult ? pendingResult.pct : null,
-          capped: !!(pendingResult && pendingResult.capped),
-          pageCount: pendingResult ? pendingResult.pageCount : 0,
-          rows: (pendingResult ? pendingResult.rows : []).map(r => ({ key: r.key, status: r.status, earned: r.earned, points: r.points, tag: r.tag })),
-          date: new Date().toISOString()
-        })
-      }).catch(() => {});
-    }
-
-    gate.classList.remove('active');
-    renderReport(pendingUrl, pendingResult, pendingResult.pageUrls || [], email);
-    window.scrollTo({ top: reportBox.offsetTop - 20, behavior: 'smooth' });
+    if (!any) break;
   }
+  return [{ url: origin + '/', lastmod: '' }].concat(picked.map(p => ({ url: p.url, lastmod: p.lastmod })));
+}
 
-  scanBtn.addEventListener('click', scan);
-  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') scan(); });
-  unlockBtn.addEventListener('click', unlock);
-  leadEmail.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
-  window.addEventListener('resize', reportHeight);
-})();
-</script>
-</body>
-</html>
+// ---- firewall / CDN test
+function detectCdn(hdr) {
+  if (!hdr) return '';
+  if (hdr['cf-ray'] || /cloudflare/i.test(hdr['server'] || '')) return 'Cloudflare';
+  if (hdr['x-sucuri-id']) return 'Sucuri';
+  if (hdr['x-amz-cf-id']) return 'Amazon CloudFront';
+  if (/akamai/i.test(hdr['server'] || '') || hdr['x-akamai-transformed']) return 'Akamai';
+  if (hdr['x-vercel-id']) return 'Vercel';
+  return '';
+}
+function looksBlocked(r) {
+  if (!r || r.error || r.status === 0) return true;
+  if ([401, 403, 429, 451, 503].includes(r.status)) return true;
+  if (r.status === 200 && r.text.length < 15000 && /just a moment|checking your browser|attention required|pardon our interruption|access denied|are you a robot/i.test(r.text)) return true;
+  return false;
+}
+function firewallItem(browser, botRes) {
+  const label = 'Firewall / CDN bot-block test';
+  if (looksBlocked(browser)) {
+    return item('firewall', 'na', label, 'We could not run this test because the site also refused our normal, browser-style request. It may be protected by a strict firewall.', 'Not tested');
+  }
+  const cdn = detectCdn(browser.hdr);
+  const names = { gptbot: 'GPTBot', claudebot: 'ClaudeBot', perplexitybot: 'PerplexityBot' };
+  const blockedBots = Object.keys(botRes).filter(k => looksBlocked(botRes[k])).map(k => names[k]);
+  if (blockedBots.length === 0) {
+    return item('firewall', 'pass', label, `${cdn ? cdn + ' detected, but it ' : 'Your firewall '}did not block AI bot requests in our test. (This checks user-agent blocking; some firewalls also verify bot IP addresses.)`, 'No block found');
+  }
+  if (blockedBots.length === 1) {
+    return item('firewall', 'warn', label, `Your firewall${cdn ? ' (' + cdn + ')' : ''} appears to block ${blockedBots[0]} even though normal visitors get through. Check your bot-protection settings.`, 'Possible block');
+  }
+  return item('firewall', 'fail', label, `Your firewall${cdn ? ' (' + cdn + ')' : ''} appears to block ${blockedBots.join(', ')} even though normal visitors get through. Your robots.txt may say "welcome", but these bots are turned away before they read it.`, 'Possible block');
+}
+
+// exported for local testing only
+exports._test = { parseRobots, checkBotAccess, isBlockedHost, pickPages, sitemapEntries, firewallItem, looksBlocked };
