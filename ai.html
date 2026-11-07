@@ -313,17 +313,26 @@
   .email-note { background: var(--green-soft); color: var(--green-dark); border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.5; margin-bottom: 20px; }
 
   .cta-banner {
-    background: var(--bg-soft); border-radius: 16px; padding: 24px; display: flex;
-    justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 28px;
+    background: var(--green-soft); border-radius: 16px 16px 0 0; padding: 24px 28px; display: flex;
+    justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; margin-top: 8px;
   }
   .cta-banner h3 { font-size: 19px; margin: 0 0 6px; }
   .cta-banner h3 .accent { color: var(--green); }
-  .cta-banner p { font-size: 13.5px; color: var(--gray); margin: 0; max-width: 44ch; }
+  .cta-banner p { font-size: 13.5px; color: var(--gray); margin: 0; max-width: 46ch; }
   .cta-banner a {
     background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
     font-size: 14px; padding: 13px 22px; border-radius: 999px; white-space: nowrap;
   }
   .cta-banner a:hover { background: var(--green-dark); }
+  .contact-footer {
+    background: #0F2A47; color: #fff; border-radius: 0 0 16px 16px; padding: 18px 28px; margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: space-between; gap: 18px 28px; flex-wrap: wrap; font-size: 14px;
+  }
+  .contact-footer .cf-msg { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 240px; line-height: 1.45; }
+  .contact-footer .cf-ic { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,.12); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; flex: none; }
+  .contact-footer a { color: #fff; text-decoration: none; font-weight: 600; white-space: nowrap; }
+  .contact-footer a:hover { text-decoration: underline; }
+  .contact-footer .cf-links { display: flex; gap: 12px 28px; flex-wrap: wrap; }
 
   .quick-wins h4 { font-size: 15px; margin: 0 0 14px; }
   .quick-wins-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 28px; }
@@ -561,7 +570,8 @@
     { key: 'og', label: 'Open Graph tags', phrase: 'have complete Open Graph tags', note: 'Controls link previews on social platforms, so it is not scored here.' }
   ];
 
-  const FRAC = { pass: 1, warn: 0.5, fail: 0 };
+  // Amber (partial) earns ZERO points: only a full pass scores.
+  const FRAC = { pass: 1, warn: 0, fail: 0 };
 
   function aggregatePages(check, pageResults) {
     const vals = [];
@@ -576,10 +586,10 @@
     let frac, status;
     if (check.mode === 'any') {
       status = passN > 0 ? 'pass' : warnN > 0 ? 'warn' : 'fail';
-      frac = FRAC[status];
+      frac = passN > 0 ? 1 : 0;
     } else {
-      frac = (passN + 0.5 * warnN) / n;
-      status = frac === 1 ? 'pass' : frac >= 0.5 ? 'warn' : 'fail';
+      frac = passN / n;                       // only fully passing pages earn points
+      status = frac === 1 ? 'pass' : (passN + warnN) / n >= 0.5 ? 'warn' : 'fail';
     }
     return { vals, n, passN, warnN, frac, status };
   }
@@ -607,14 +617,14 @@
         let line;
         if (c.mode === 'any') {
           line = agg.passN > 0 ? 'Found on ' + agg.passN + ' of ' + agg.n + ' pages scanned.'
-               : agg.warnN > 0 ? 'Partly found on ' + agg.warnN + ' of ' + agg.n + ' pages scanned.'
+               : agg.warnN > 0 ? 'Only partly found (' + agg.warnN + ' of ' + agg.n + ' pages scanned).'
                : 'Not found on any of the ' + agg.n + ' pages scanned.';
         } else {
           line = agg.passN + ' of ' + agg.n + ' pages ' + c.phrase + '.';
         }
         const tail = agg.status === 'pass' ? c.why : (agg.status === 'warn' && c.warn ? c.warn : c.fix);
         rows.push({ key: c.key, scope: 'pages', status: agg.status, label: c.label, detail: line + ' ' + tail,
-                    tag: agg.passN + ' of ' + agg.n + ' pages', points: c.points, earned: c.points * agg.frac,
+                    tag: (c.mode === 'any' && agg.passN === 0 && agg.warnN > 0) ? 'Partial' : agg.passN + ' of ' + agg.n + ' pages', points: c.points, earned: c.points * agg.frac,
                     fix: c.fix, pageVals: agg.vals });
       }
     });
@@ -824,6 +834,155 @@
       '</div>';
   }
 
+  // ---------- PDF download (renders the report as shown on screen)
+  function loadScript(src) {
+    return new Promise((res, rej) => {
+      const el = document.createElement('script');
+      el.src = src; el.onload = res; el.onerror = () => rej(new Error('load failed'));
+      document.head.appendChild(el);
+    });
+  }
+  function pdfHtml(url, result) {
+    const m = scoreMeta(result.pct);
+    const R = 62, C = 2 * Math.PI * R, off = C - (result.pct / 100) * C;
+    let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
+    const total = result.rows.length;
+    const lbl = { pass: 'Passed', warn: 'Improvement', fail: 'Critical Issue' };
+    const clip = (t, n) => { t = String(t || ''); return t.length > n ? t.slice(0, n - 1).trim() + '…' : t; };
+    const row = (r) => '<div class="pb prow"><div class="pi ' + r.status + '">' + iconChar(r.status) + '</div>' +
+      '<div class="pt"><b>' + esc(r.label) + '</b><span>' + esc(clip(r.detail, 100)) + '</span></div>' +
+      '<div class="pp ' + r.status + '">' + lbl[r.status] + '</div><div class="pc">›</div></div>';
+    const ex = (r) => '<div class="pb prow"><div class="pi info">i</div>' +
+      '<div class="pt"><b>' + esc(r.label) + '</b><span>' + esc(clip(r.detail, 90)) + '</span></div>' +
+      '<div class="pp info">' + esc(clip(r.tag || 'Info', 18)) + '</div><div class="pc">›</div></div>';
+    return `
+<style>
+.pdf{width:794px;box-sizing:border-box;padding:0 28px 8px;background:#fff;font-family:inherit;color:#14171F}
+.pdf *{box-sizing:border-box}
+.pdf .strip{background:#EAF7EE;margin:0 -28px 14px;padding:9px 28px;font-size:10.5px;color:#17692F}
+.pdf .brand{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.pdf .brand b{font-size:20px;letter-spacing:.5px;color:#0F2A47}.pdf .brand span{font-size:12px;color:#5B6270;margin-left:12px}
+.pdf .pill{display:inline-block;background:#EAF7EE;color:#17692F;border-radius:999px;padding:4px 12px;font-size:10.5px;font-weight:600;margin-bottom:8px}
+.pdf h1{font-size:23px;margin:0 0 6px;line-height:1.2}.pdf h1 em{font-style:normal;color:#1E8E3E}
+.pdf .intro{font-size:11.5px;color:#5B6270;line-height:1.5;margin:0 0 10px;max-width:470px}
+.pdf .urlb{display:inline-block;border:1px solid #E4E7EC;border-radius:8px;padding:6px 12px;font-size:11px}
+.pdf .top{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:14px}
+.pdf .gw{position:relative;width:140px;height:140px;flex:none}.pdf .gc{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.pdf .gc b{font-size:34px;line-height:1}.pdf .gc small{font-size:9px;color:#5B6270;letter-spacing:.5px;margin-top:3px;text-align:center}
+.pdf .stats{display:flex;border:1px solid #E4E7EC;border-radius:12px;margin-bottom:14px}
+.pdf .st{flex:1;padding:11px 12px;display:flex;align-items:center;gap:9px;border-right:1px solid #E4E7EC}.pdf .st:last-child{border:0}
+.pdf .st i{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-weight:700;font-size:13px}
+.pdf .st b{font-size:17px;display:block;line-height:1.1}.pdf .st small{font-size:9.5px;color:#5B6270}
+.pdf .body{display:flex;gap:16px;align-items:flex-start}
+.pdf .about{width:150px;flex:none;background:#EAF7EE;border-radius:12px;padding:12px;font-size:10.5px;line-height:1.5;color:#5B6270}.pdf .about b{display:block;color:#14171F;font-size:12px;margin-bottom:4px}
+.pdf .main{flex:1;min-width:0}.pdf h3{font-size:14px;margin:0 0 2px}.pdf .sub{font-size:10px;color:#5B6270;margin:0 0 6px}
+.pdf .prow{display:flex;align-items:center;gap:9px;padding:5px 0;border-top:1px solid #E4E7EC}
+.pdf .pi{width:20px;height:20px;border-radius:50%;flex:none;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.pdf .pi.pass{background:#1E8E3E}.pdf .pi.warn{background:#C8862B}.pdf .pi.fail{background:#C0392B}.pdf .pi.info{background:#9AA1AC}
+.pdf .pt{flex:1;min-width:0}.pdf .pt b{display:block;font-size:11.5px}.pdf .pt span{display:block;font-size:9.5px;color:#5B6270;line-height:1.4}
+.pdf .pp{font-size:9.5px;font-weight:700;padding:3px 9px;border-radius:5px;white-space:nowrap;flex:none}
+.pdf .pp.pass{background:#EAF7EE;color:#17692F}.pdf .pp.warn{background:#FBF1E1;color:#9a6416}.pdf .pp.fail{background:#FDECEA;color:#C0392B}.pdf .pp.info{background:#F1F3F6;color:#5B6270}
+.pdf .pc{color:#9AA1AC;font-size:15px;flex:none}
+.pdf .ah{margin-top:10px}
+.pdf .cta{background:#EAF7EE;border-radius:12px 12px 0 0;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:14px}
+.pdf .cta b{font-size:13.5px;display:block}.pdf .cta span{font-size:10px;color:#5B6270}
+.pdf .cta a{background:#1E8E3E;color:#fff;font-weight:700;font-size:11px;padding:9px 16px;border-radius:999px;white-space:nowrap;text-decoration:none}
+.pdf .foot{background:#0F2A47;color:#fff;border-radius:0 0 12px 12px;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px;gap:14px}
+.pdf .foot div:last-child{text-align:left;font-weight:600;line-height:1.7;white-space:nowrap;flex:none}.pdf .foot div:first-child{flex:1;line-height:1.5}
+.pdf .disc{font-size:8.5px;color:#9AA1AC;margin-top:8px;line-height:1.4}
+</style>
+<div class="pdf">
+  <div class="pb strip"><b>AI Website Audit Report</b> · See how AI platforms (ChatGPT, Claude, Gemini &amp; Perplexity) view your website and get a clear, actionable plan to improve your AI visibility.</div>
+  <div class="pb">
+    <div class="brand"><div><b>SEOZAR</b><span>AI Website Audit</span></div><span style="color:#9AA1AC;font-size:10px">${esc(new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}))}</span></div>
+    <div class="top">
+      <div><span class="pill">AI Visibility Report for: <b>${esc(host)}</b></span>
+        <h1>Your Website AI Readiness Report is <em>Ready!</em> 🚀</h1>
+        <p class="intro">A complete analysis of how AI platforms like ChatGPT, Claude, Gemini and Perplexity discover, understand and cite your website, based on site-wide checks plus ${result.pageCount} page${result.pageCount === 1 ? '' : 's'} scanned, with clear issues, fixes and priorities.</p>
+        <span class="urlb">${esc(url)}</span></div>
+      <div class="gw"><svg width="140" height="140" viewBox="0 0 140 140"><circle cx="70" cy="70" r="${R}" stroke="#E4E7EC" stroke-width="11" fill="none"/><circle cx="70" cy="70" r="${R}" stroke="${m.color}" stroke-width="11" fill="none" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 70 70)"/></svg>
+        <div class="gc"><b style="color:${m.color}">${result.pct}<small style="font-size:13px;color:#5B6270">/100</small></b><small>AI READINESS<br>SCORE</small></div></div>
+    </div>
+    <div class="stats">
+      <div class="st"><i style="background:#EAF7EE;color:#1E8E3E">✓</i><div><b>${result.counts.pass}</b><small>Passed Checks</small></div></div>
+      <div class="st"><i style="background:#FBF1E1;color:#C8862B">!</i><div><b>${result.counts.warn}</b><small>Improvements</small></div></div>
+      <div class="st"><i style="background:#FDECEA;color:#C0392B">✕</i><div><b>${result.counts.fail}</b><small>Critical Issues</small></div></div>
+      <div class="st"><i style="background:#EEF2FF;color:#4F5FDB">◎</i><div><b>${result.counts.pass}/${total}</b><small>Total Checks</small></div></div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="about"><b>About This Report</b>This report evaluates the key factors that help AI platforms find, read and accurately understand your website.${result.capped ? '<br><br><b style="color:#C0392B">Score capped at 40:</b> GPTBot and ClaudeBot are blocked.' : ''}</div>
+    <div class="main">
+      <div class="pb"><h3>Audit Overview</h3><p class="sub">A detailed breakdown of key checks, their status and what you can do next.</p></div>
+      ${result.rows.map(row).join('')}
+      ${result.extras.length ? '<div class="pb ah"><h3>Additional Checks (Advanced)</h3></div>' + result.extras.map(ex).join('') : ''}
+    </div>
+  </div>
+  <div class="pb">
+    <div class="cta"><div><b>Ready to fix what's holding your site back?</b><span>Get a custom AI visibility plan with prioritized fixes and expert support.</span></div><a>Get My AI Visibility Plan →</a></div>
+    <div class="foot"><div><b>🤖 If you want to Rank your business in AI Platforms like ChatGPT, Perplexity, Claude or Google AI Overview, please contact us.</b></div><div>📞 8796271027<br>✉ enquiry@seozar.co</div></div>
+    <div class="disc">Automated AI-readability check of your whole website: site-wide settings plus pages from across your main sections. It does not test whether AI models currently mention your business. seozar.co</div>
+  </div>
+</div>`;
+  }
+
+  async function downloadPdf(btn, url, result) {
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Preparing PDF…';
+    let holder;
+    try {
+      if (!window.html2canvas) await loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js');
+      if (!(window.jspdf && window.jspdf.jsPDF)) await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+
+      holder = document.createElement('div');
+      holder.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;background:#fff;';
+      holder.innerHTML = pdfHtml(url, result);
+      document.body.appendChild(holder);
+      const root = holder.querySelector('.pdf');
+      const base = root.getBoundingClientRect().top;
+      const blocks = Array.from(holder.querySelectorAll('.pb')).map(el => {
+        const r = el.getBoundingClientRect(); return { top: r.top - base, bottom: r.bottom - base };
+      });
+      const totalH = root.getBoundingClientRect().height;
+
+      // Split into A4 pages (794 x 1123 px) without cutting a row in half
+      const PAGE_H = 1123, PAD = 24, USABLE = PAGE_H - PAD * 2;
+      const pages = []; let start = 0, limit = PAGE_H - PAD;
+      blocks.forEach(b => {
+        if (b.bottom - start > (pages.length ? USABLE : PAGE_H - PAD) && b.top > start + 40) {
+          pages.push([start, b.top]); start = b.top;
+        }
+      });
+      pages.push([start, totalH]);
+
+      const canvas = await window.html2canvas(holder, { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: 794, windowHeight: Math.ceil(totalH) + 50 });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      const mm = 210 / 794;
+      // Slightly taller than one page: shrink to fit a single A4 page instead of spilling over
+      const fit = totalH > PAGE_H && totalH <= PAGE_H * 1.22 ? PAGE_H / totalH : 1;
+      if (fit < 1) { pages.length = 0; pages.push([0, totalH]); }
+      pages.forEach((p, i) => {
+        const sy = Math.round(p[0] * 2), sh = Math.max(1, Math.round((p[1] - p[0]) * 2));
+        const c = document.createElement('canvas'); c.width = canvas.width; c.height = sh;
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        g.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, c.width, sh);
+        if (i) pdf.addPage();
+        const w = 210 * fit, h = (p[1] - p[0]) * mm * fit;
+        pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', (210 - w) / 2, i ? PAD * mm : 0, w, h);
+      });
+      let host = 'website';
+      try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
+      pdf.save('AI-Readiness-Report-' + host + '.pdf');
+    } catch (err) {
+      console.error('PDF failed', err && err.message);
+      window.print();
+    } finally {
+      if (holder) holder.remove();
+      btn.disabled = false; btn.textContent = label;
+    }
+  }
+
   function renderReport(url, result, pageList, email) {
     const meta = scoreMeta(result.pct);
     const r = 74;
@@ -900,7 +1059,7 @@
         </div>
         <div class="overview-list">
           <h3>Audit Overview</h3>
-          <p>Every check is weighted by its impact on AI visibility. Points add up to 100.</p>
+          <p>Every check is weighted by its impact on AI visibility. Points add up to 100. Partly-fixed (amber) checks earn 0 points until fully fixed.</p>
           ${result.capped ? '<div class="cap-note">Your score is capped at 40 because both GPTBot and ClaudeBot are blocked. AI cannot read your site until that is fixed.</div>' : ''}
           ${result.rows.map(rowHtml).join('')}
           ${result.extras.length ? '<div class="extras-title">Extra signals (not scored)</div>' + result.extras.map(rowHtml).join('') : ''}
@@ -917,6 +1076,13 @@
         </div>
         <a href="https://seozar.co/contact-us/" target="_blank" rel="noopener">Get My AI Visibility Plan →</a>
       </div>
+      <div class="contact-footer">
+        <div class="cf-msg"><span class="cf-ic">🤖</span><strong>If you want to Rank your business in AI Platforms like ChatGPT, Perplexity, Claude or Google AI Overview, please contact us.</strong></div>
+        <div class="cf-links">
+          <a href="tel:+918796271027">📞 8796271027</a>
+          <a href="mailto:enquiry@seozar.co">✉ enquiry@seozar.co</a>
+        </div>
+      </div>
 
       ${quickWins.length ? `
       <div class="quick-wins">
@@ -932,7 +1098,7 @@
       </div>` : ''}
 
       <div class="report-footer">
-        <div class="disclaimer">⚠ Disclaimer: This is an automated readability check of a sample of up to 10 pages. It doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
+        <div class="disclaimer">⚠ Disclaimer: This is an automated AI-readability check of your whole website: site-wide settings plus pages from across your main sections. It doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
         <button class="share-btn" id="copy-link-btn">Copy report link</button>
       </div>
     `;
@@ -940,7 +1106,7 @@
     reportBox.querySelectorAll('details').forEach(d => d.addEventListener('toggle', reportHeight));
     reportHeight();
 
-    document.getElementById('download-btn').addEventListener('click', () => window.print());
+    document.getElementById('download-btn').addEventListener('click', (e) => downloadPdf(e.currentTarget, url, result));
     document.getElementById('audit-another-btn').addEventListener('click', () => {
       reportBox.classList.remove('active');
       reportBox.innerHTML = '';
