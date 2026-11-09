@@ -528,15 +528,15 @@
   //   mode 'ratio' = score scales with how many pages pass
   // Points add up to 100. Pass = full points, Warn = half, Fail = 0.
   const CHECKS = [
-    { key: 'entity', scope: 'pages', mode: 'any', points: 13, label: 'Business entity schema',
+    { key: 'entity', scope: 'pages', mode: 'any', points: 13, label: 'AI Business entity schema',
       why: 'AI can tell exactly who you are, what you do and where you operate, so it can name you correctly in answers.',
       fix: 'Add Organization or LocalBusiness schema (Yoast or Rank Math can do this) so AI can identify your business.',
       warn: 'Your pages have some schema, but nothing that marks you as an Organization or LocalBusiness.' },
-    { key: 'faq', scope: 'pages', mode: 'any', points: 10, label: 'FAQ content & FAQPage schema',
+    { key: 'faq', scope: 'pages', mode: 'any', points: 10, label: 'AI FAQ content & FAQ Page schema',
       why: 'Question-and-answer content marked up as FAQPage is easy for AI to quote directly.',
       fix: 'Add a Q&A section with FAQPage schema to your key pages.',
       warn: 'You have question-style headings but no FAQPage schema. Marking them up makes them much easier for AI to quote.' },
-    { key: 'headings', scope: 'pages', mode: 'ratio', points: 9, label: 'Heading structure',
+    { key: 'headings', scope: 'pages', mode: 'ratio', points: 9, label: 'AI Heading structure',
       phrase: 'have one clear H1 and organized H2 sections',
       why: 'AI can pull clean sections and answers out of well-organized pages.',
       fix: 'Give every page one H1 and break the content into H2 sections.' },
@@ -548,7 +548,7 @@
       phrase: 'name their author in schema',
       why: 'Named authors are a trust signal AI weighs when deciding what to cite.',
       fix: 'Add Article schema with a named author to your blog posts and articles.' },
-    { key: 'lastmod', scope: 'pages', mode: 'ratio', points: 6, label: 'Content freshness (date signals)',
+    { key: 'lastmod', scope: 'pages', mode: 'ratio', points: 6, label: 'AI Content freshness (date signals)',
       phrase: 'show an update date from the last 12 months',
       why: 'AI tends to prefer recently updated content when choosing what to cite.',
       fix: 'Show visible updated dates and add dateModified to your schema, and refresh older pages.' },
@@ -623,8 +623,12 @@
           extras.push({ key: it.key, status: 'info', label: it.label, detail: it.detail, tag: it.tag || 'Not tested' });
           return;
         }
-        rows.push({ key: c.key, scope: 'site', status: it.status, label: it.label, detail: it.detail, tag: it.tag,
-                    points: c.points, earned: c.points * FRAC[it.status], fix: it.detail });
+        let label = it.label, detail = String(it.detail || '').replace(/\s*Check your bot-protection settings\.\s*$/, '');
+        if (c.key === 'sitemap') label = it.status === 'pass' ? 'AI Sitemap found' : 'AI Sitemap not found';
+        if (c.key === 'llms' && it.status === 'warn') detail = 'No llms.txt file was found on your site.';
+        if (c.key === 'llmsfull' && it.status === 'warn') detail = 'No llms-full.txt file was found on your site.';
+        rows.push({ key: c.key, scope: 'site', status: it.status, label: label, detail: detail, tag: it.tag,
+                    points: c.points, earned: c.points * FRAC[it.status] });
       } else {
         const agg = aggregatePages(c, pageResults);
         if (!agg) return;                      // not applicable to any scanned page
@@ -636,8 +640,8 @@
         } else {
           line = agg.passN + ' of ' + agg.n + ' pages ' + c.phrase + '.';
         }
-        const tail = agg.status === 'pass' ? c.why : (agg.status === 'warn' && c.warn ? c.warn : c.fix);
-        rows.push({ key: c.key, scope: 'pages', status: agg.status, label: c.label, detail: line + ' ' + tail,
+        const tail = agg.status === 'pass' ? c.why : '';
+        rows.push({ key: c.key, scope: 'pages', status: agg.status, label: c.label, detail: (line + ' ' + tail).trim(),
                     tag: (c.mode === 'any' && agg.passN === 0 && agg.warnN > 0) ? 'Partial' : agg.passN + ' of ' + agg.n + ' pages', points: c.points, earned: c.points * agg.frac,
                     fix: c.fix, pageVals: agg.vals });
       }
@@ -668,8 +672,12 @@
       extras.push({ key: 'ailayer', status: 'info', label: a.label, detail: a.detail, tag: a.tag });
     }
 
+    // The four content/schema checks sit at the bottom (in this order); everything else is sorted by status.
+    const BOTTOM = ['entity', 'faq', 'headings', 'breadcrumb'];
     const order = { fail: 0, warn: 1, pass: 2 };
-    rows.sort((a, b) => order[a.status] - order[b.status] || b.points - a.points);
+    const grp = (r) => BOTTOM.indexOf(r.key) === -1 ? 0 : 1;
+    rows.sort((a, b) => grp(a) - grp(b) ||
+      (grp(a) ? BOTTOM.indexOf(a.key) - BOTTOM.indexOf(b.key) : (order[a.status] - order[b.status] || b.points - a.points)));
 
     const counts = { pass: 0, warn: 0, fail: 0 };
     rows.forEach(r => { counts[r.status]++; });
@@ -835,8 +843,7 @@
   }
 
   function rowHtml(r) {
-    const pts = (r.points !== undefined)
-      ? '<span class="check-pts">' + fmtPts(r.earned) + '/' + r.points + ' pts</span>' : '';
+    const pts = '';
     const pages = (r.pageVals && r.pageVals.length > 1)
       ? '<details class="pg-details"><summary>View pages</summary><ul>' +
         r.pageVals.map(v => '<li><span class="pg-ic ' + v.status + '">' + iconChar(v.status) + '</span>' + esc(pathOf(v.url)) + '</li>').join('') +
@@ -1021,8 +1028,6 @@
     const circumference = 2 * Math.PI * r;
     const offset = circumference - (result.pct / 100) * circumference;
     const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
-    const quickWins = result.rows.filter(x => x.status !== 'pass')
-      .sort((a, b) => (b.points - b.earned) - (a.points - a.earned)).slice(0, 3);
     const pagesNote = result.pageCount + ' page' + (result.pageCount === 1 ? '' : 's') + ' scanned' +
       (result.attempted > result.pageCount ? ' (' + (result.attempted - result.pageCount) + ' could not be read)' : '');
 
@@ -1088,14 +1093,14 @@
         <div class="overview-side">
           <div class="trophy">${result.pct >= 80 ? '🏆' : result.pct >= 50 ? '🔧' : '⚠️'}</div>
           <strong>${result.pct >= 80 ? 'Good Work!' : result.pct >= 50 ? 'Almost There' : 'Needs Attention'}</strong>
-          <p>${result.pct >= 80 ? 'Your website is in good shape for AI. Focus on the improvements to make it even stronger.' : 'Your site has real opportunities to become easier for AI to read and cite. Fixing the items below can make a big difference.'}</p>
+          <p>${result.pct >= 80 ? 'Your website is in good shape for AI.' : 'Your site has real opportunities to become easier for AI to read and cite.'}</p>
         </div>
           ${SIDE_CARD}
         </div>
         <div class="overview-list">
           <h3>Audit Overview</h3>
-          <p>Every check is weighted by its impact on AI visibility. Points add up to 100. Partly-fixed (amber) checks earn 0 points until fully fixed.</p>
-          ${result.capped ? '<div class="cap-note">Your score is capped at 40 because both GPTBot and ClaudeBot are blocked. AI cannot read your site until that is fixed.</div>' : ''}
+          <p>A detailed breakdown of the key checks and where your site stands on each.</p>
+          ${result.capped ? '<div class="cap-note">Your score is capped at 40 because both GPTBot and ClaudeBot are blocked.</div>' : ''}
           ${result.rows.map(rowHtml).join('')}
           ${result.extras.length ? '<div class="extras-title">Extra signals (not scored)</div>' + result.extras.map(rowHtml).join('') : ''}
           <details class="pg-details scanned-pages"><summary>Pages we scanned (${result.pageCount})</summary><ul>
@@ -1119,18 +1124,7 @@
         </div>
       </div>
 
-      ${quickWins.length ? `
-      <div class="quick-wins">
-        <h4>💡 Quick Wins for You</h4>
-        <div class="quick-wins-grid">
-          ${quickWins.map(q => `
-            <div class="quick-win-card">
-              <div class="qw-title">${esc(q.label)}</div>
-              <div class="qw-detail">${esc(q.fix)}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>` : ''}
+
 
       <div class="report-footer">
         <div class="disclaimer">⚠ Disclaimer: This is an automated AI-readability check of your whole website: site-wide settings plus pages from across your main sections. It doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
