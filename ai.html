@@ -560,7 +560,7 @@
       phrase: 'declare their language',
       why: 'Helps AI process your content in the right language.',
       fix: 'Add lang="en" (or your language) to the <html> tag.' },
-    { key: 'alt', scope: 'pages', mode: 'ratio', points: 3, label: 'Image alt text',
+    { key: 'alt', scope: 'pages', mode: 'ratio', points: 3, label: 'AI Image alt text',
       phrase: 'have alt text on their images',
       why: 'Helps AI understand your images, not just your text.',
       fix: 'Add short, descriptive alt text to your images.' },
@@ -672,8 +672,8 @@
       extras.push({ key: 'ailayer', status: 'info', label: a.label, detail: a.detail, tag: a.tag });
     }
 
-    // The four content/schema checks sit at the bottom (in this order); everything else is sorted by status.
-    const BOTTOM = ['entity', 'faq', 'headings', 'breadcrumb'];
+    // The content/schema checks sit at the bottom (in this order); everything else is sorted by status.
+    const BOTTOM = ['entity', 'faq', 'headings', 'breadcrumb', 'desc', 'alt'];
     const order = { fail: 0, warn: 1, pass: 2 };
     const grp = (r) => BOTTOM.indexOf(r.key) === -1 ? 0 : 1;
     rows.sort((a, b) => grp(a) - grp(b) ||
