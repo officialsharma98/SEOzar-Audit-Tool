@@ -66,6 +66,8 @@
     background: var(--red-soft); color: var(--red); font-size: 14px; line-height: 1.5;
   }
   #error.active { display: block; }
+  #hero-error { display: none; margin-top: 16px; padding: 14px 18px; border-radius: 12px; background: var(--red-soft); color: var(--red); font-size: 14px; line-height: 1.5; max-width: 640px; }
+  #hero-error.active { display: block; }
 
   #gate { display: none; margin-top: 32px; padding: 24px; border: 1.5px solid var(--line); border-radius: 16px; }
   #gate.active { display: block; }
@@ -101,10 +103,11 @@
     display: flex; align-items: center; gap: 8px; border: 1.5px solid #2D3E8F; border-radius: 999px;
     padding: 6px 6px 6px 18px; background: #fff; max-width: 640px;
   }
-  .search-pill:focus-within { border-color: var(--green); }
+  .search-pill:focus-within { border-color: #2D3E8F; box-shadow: 0 0 0 4px rgba(45, 62, 143, 0.12); }
   .search-pill .link-ic { font-size: 18px; opacity: 0.8; }
   .search-pill #url-input { border: none; border-radius: 0; padding: 12px 4px; flex: 1; min-width: 0; font-size: 16px; background: transparent; }
-  .search-pill #scan-btn { padding: 15px 26px; font-size: 16px; background: linear-gradient(135deg, #1E8E3E, #137A33); }
+  .search-pill #scan-btn { padding: 15px 28px; font-size: 16px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #22A24A, #137A33); box-shadow: 0 4px 12px rgba(19, 122, 51, 0.35); transition: transform .12s, box-shadow .12s; }
+  .search-pill #scan-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(19, 122, 51, 0.45); }
   .search-pill #scan-btn:hover { background: linear-gradient(135deg, #17692F, #0F5F28); }
   .search-pill #scan-btn:disabled { background: #A9C9B2; }
 
@@ -416,6 +419,7 @@
         <input type="text" id="url-input" placeholder="yourwebsite.com" />
         <button id="scan-btn">Check My Site →</button>
       </div>
+      <div id="hero-error" role="alert"></div>
       <div class="assure">
         <span>⚡ No sign-up needed</span>
         <span>⏱ Whole-site scan in 20–30 seconds</span>
@@ -513,6 +517,7 @@
   const loadingText = document.getElementById('loading-text');
   const barFill = document.getElementById('bar-fill');
   const errorBox = document.getElementById('error');
+  const heroError = document.getElementById('hero-error');
   const gate = document.getElementById('gate');
   const unlockBtn = document.getElementById('unlock-btn');
   const leadEmail = document.getElementById('lead-email');
@@ -698,7 +703,14 @@
     try { return new URL(u); } catch (e) { return null; }
   }
 
-  function showError(msg) {
+  // Messages about the website address, the daily limit or a failed scan appear right under the search box.
+  function showError(msg, inHero) {
+    if (inHero) {
+      heroError.textContent = msg;
+      heroError.classList.add('active');
+      try { heroError.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { /* ignore */ }
+      return;
+    }
     errorBox.textContent = msg;
     errorBox.classList.add('active');
   }
@@ -767,16 +779,17 @@
   async function scan() {
     const parsed = normalize(urlInput.value);
     errorBox.classList.remove('active');
+    heroError.classList.remove('active');
     gate.classList.remove('active');
     reportBox.classList.remove('active');
     reportBox.innerHTML = '';
 
     if (!parsed) {
-      showError('That doesn\'t look like a valid website address. Try something like "example.com".');
+      showError('That doesn\'t look like a valid website address. Try something like "example.com".', true);
       return;
     }
     if (scansToday() >= DAILY_LIMIT) {
-      showError('You\'ve used today\'s ' + DAILY_LIMIT + ' free full-site scans. Come back tomorrow, or message our team and we\'ll run one for you.');
+      showError('You\'ve used today\'s ' + DAILY_LIMIT + ' free full-site scans. Come back tomorrow, or message our team and we\'ll run one for you.', true);
       return;
     }
 
@@ -818,7 +831,7 @@
     } catch (e) {
       loading.classList.remove('active');
       heroSection.style.display = '';
-      showError('We couldn\'t check that site just now. It may be blocking automated checks, or the site may be temporarily down. Please try again in a moment.');
+      showError('We couldn\'t check that site just now. It may be blocking automated checks, or the site may be temporarily down. Please try again in a moment.', true);
     } finally {
       scanBtn.disabled = false;
       scanBtn.textContent = 'Check My Site →';
