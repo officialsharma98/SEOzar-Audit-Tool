@@ -106,7 +106,7 @@ exports.handler = async function (event) {
       if (/<sitemapindex/i.test(sm.text)) {
         const kids = locs(sm.text);
         indexCount = kids.length;
-        const chosen = rankChildren(kids).filter(u => safeHttp(u)).slice(0, 2);
+        const chosen = rankChildren(kids).filter(u => safeHttp(u)).slice(0, 4);
         if (chosen.length && remaining() > 1500) {
           const rs = await Promise.all(chosen.map(u => fetchRaw(u, { timeout: tmo(3500) })));
           rs.forEach(r => { if (isSitemap(r)) entries.push(...sitemapEntries(r.text)); });
@@ -280,13 +280,15 @@ function sitemapEntries(xml) {
   return out;
 }
 function rankChildren(kids) {
+  // Content sitemaps first (blog/news, products, collections/services); plain "pages" sitemaps last.
   const score = (u) => {
     const l = u.toLowerCase();
-    if (/(image|video|author|tag|category|taxonom|attachment)/.test(l)) return 9;
-    if (/page/.test(l)) return 0;
-    if (/post|blog|article/.test(l)) return 1;
-    if (/product|service/.test(l)) return 2;
-    return 3;
+    if (/(image|video|author|tag|taxonom|attachment)/.test(l)) return 9;
+    if (/post|blog|article|news/.test(l)) return 0;
+    if (/product/.test(l)) return 1;
+    if (/collection|categor|service|solution/.test(l)) return 2;
+    if (/page/.test(l)) return 3;
+    return 4;
   };
   return kids.map((u, i) => ({ u, i, s: score(u) })).sort((a, b) => a.s - b.s || a.i - b.i).map(x => x.u);
 }
@@ -319,22 +321,53 @@ function pickPages(origin, entries, homeHtml) {
     links.map((h, i) => ({ h, i, d: depth(h) })).sort((a, b) => a.d - b.d || a.i - b.i).forEach(x => add(x.h, ''));
   }
 
-  // Spread across sections: take one page per top-level folder in turns
-  const groups = new Map();
-  cand.forEach(c => {
-    const seg = c.key.split('/')[1] || '';
-    if (!groups.has(seg)) groups.set(seg, []);
-    groups.get(seg).push(c);
-  });
+  // Prefer real content pages (FAQ, blog/news, product/service pages) over utility pages
+  // such as contact, about, terms, shipping and returns. Utility pages are only used as filler.
+  const segsOf = (c) => c.key.split('/').filter(Boolean);
+  const CONTENT_SEG = /^(blog|blogs|news|article|articles|post|posts|insights?|guides?|resources?|learn|stories|magazine|knowledge-?base)$/i;
+  const PRODUCT_SEG = /^(products?|collections?|shop|store|services?|solutions?|categor(y|ies)|items?|offerings?)$/i;
+  const UTILITY = /(^|-)(contact|contact-us|about|about-us|terms|conditions|privacy|policy|policies|refund|refunds|return|returns|shipping|delivery|size-chart|track|tracking|track-order|cart|checkout|account|login|register|signin|wishlist|cookie|cookies|disclaimer|legal|careers|sitemap|thank-you|unsubscribe)(-|$)/i;
+  const kindOf = (c) => {
+    const segs = segsOf(c);
+    if (segs.some(x => /faq/i.test(x))) return 'faq';
+    if (segs.slice(0, -1).some(x => CONTENT_SEG.test(x)) || (segs.length === 1 && CONTENT_SEG.test(segs[0]))) return 'content';
+    if (segs.slice(0, -1).some(x => PRODUCT_SEG.test(x)) || (segs.length === 1 && PRODUCT_SEG.test(segs[0]))) return 'product';
+    const last = segs[segs.length - 1] || '';
+    if (UTILITY.test(last)) return 'utility';
+    return 'other';
+  };
+  const buckets = { faq: [], content: [], product: [], other: [], utility: [] };
+  cand.forEach(c => buckets[kindOf(c)].push(c));
+
+  // Inside a bucket: spread across sections (blogs/news vs blogs/guides, products vs collections),
+  // newest pages first when the sitemap gives dates.
+  const spread = (list) => {
+    const groups = new Map();
+    list.slice().sort((x, y) => (y.lastmod || '').localeCompare(x.lastmod || '')).forEach(c => {
+      const segs = segsOf(c);
+      const key = segs.slice(0, segs[0] === 'blogs' ? 2 : 1).join('/');
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(c);
+    });
+    const lists = Array.from(groups.values()), out = [];
+    for (let round = 0; ; round++) {
+      let any = false;
+      for (const l of lists) if (l[round]) { out.push(l[round]); any = true; }
+      if (!any) break;
+    }
+    return out;
+  };
+  const queues = ['faq', 'content', 'product', 'other'].map(k => spread(buckets[k]));
   const picked = [];
-  const lists = Array.from(groups.values());
   for (let round = 0; picked.length < MAX_PAGES - 1; round++) {
     let any = false;
-    for (const l of lists) {
-      if (l[round]) { picked.push(l[round]); any = true; if (picked.length >= MAX_PAGES - 1) break; }
+    for (const q of queues) {
+      if (q[round]) { picked.push(q[round]); any = true; if (picked.length >= MAX_PAGES - 1) break; }
     }
     if (!any) break;
   }
+  // Utility pages (contact, about, terms...) only fill in for very small sites, so we still scan at least 4 pages.
+  if (picked.length < 3) spread(buckets.utility).forEach(c => { if (picked.length < 3) picked.push(c); });
   return [{ url: origin + '/', lastmod: '' }].concat(picked.map(p => ({ url: p.url, lastmod: p.lastmod })));
 }
 
