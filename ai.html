@@ -335,6 +335,10 @@
   .check-tag.info { background: #F0F2F5; color: var(--gray); }
   .pg-ic.info { background: var(--gray-soft); }
   .extras-title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--gray-soft); text-transform: uppercase; margin: 22px 0 2px; }
+  .cat-title { font-size: 13px; font-weight: 800; letter-spacing: 0.02em; color: #0F2A47; margin: 22px 0 0; padding-bottom: 6px; border-bottom: 2px solid var(--green-soft); display: flex; justify-content: space-between; gap: 10px; }
+  .cat-title small { font-weight: 600; color: var(--gray); letter-spacing: 0; }
+  .score-note { background: #F5F7FA; border-radius: 12px; padding: 11px 14px; font-size: 12.5px; color: var(--gray); line-height: 1.5; margin: 10px 0 0; }
+  .check-fix { font-size: 12.5px; color: var(--green-dark); margin-top: 4px; }
   .cap-note { background: var(--red-soft); color: var(--red); border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
   .pg-details { margin-top: 8px; font-size: 12.5px; color: var(--gray); }
   .pg-details summary { cursor: pointer; color: var(--green-dark); font-weight: 600; }
@@ -446,7 +450,7 @@
       <div class="sec-label">What you'll uncover</div>
       <div class="tile-grid">
         <div class="tile-item"><span class="tile purple">🤖</span> Ai Crawler Access</div>
-        <div class="tile-item"><span class="tile blue">📄</span> llms.txt Check</div>
+        <div class="tile-item"><span class="tile blue">📄</span> Sitemap &amp; llms.txt</div>
         <div class="tile-item"><span class="tile green">🗂</span> Structured Data</div>
         <div class="tile-item"><span class="tile blue">H</span> Heading Structure</div>
         <div class="tile-item"><span class="tile pink">❓</span> FAQ Content</div>
@@ -465,7 +469,7 @@
       <div class="ov-row"><span class="ov-dot pass">✓</span><span>Ai Crawler Access</span><span class="ov-track"><span class="ov-fill pass" style="display:block;width:100%"></span></span><span class="ov-tick">✓</span></div>
       <div class="ov-row"><span class="ov-dot pass">✓</span><span>Structured Data</span><span class="ov-track"><span class="ov-fill pass" style="display:block;width:100%"></span></span><span class="ov-tick">✓</span></div>
       <div class="ov-row"><span class="ov-dot warn">!</span><span>Content &amp; Headings</span><span class="ov-track"><span class="ov-fill warn" style="display:block;width:60%"></span></span><span></span></div>
-      <div class="ov-row"><span class="ov-dot pass">✓</span><span>Ai Layer Files (llms.txt, etc.)</span><span class="ov-track"><span class="ov-fill pass" style="display:block;width:100%"></span></span><span class="ov-tick">✓</span></div>
+      <div class="ov-row"><span class="ov-dot pass">✓</span><span>Files &amp; Discovery (sitemap, llms.txt)</span><span class="ov-track"><span class="ov-fill pass" style="display:block;width:100%"></span></span><span class="ov-tick">✓</span></div>
       <div class="ov-row"><span class="ov-dot fail">✕</span><span>Firewall &amp; Access</span><span class="ov-track"><span class="ov-fill fail" style="display:block;width:20%"></span></span><span></span></div>
     </div>
     <div class="ov-stats">
@@ -527,61 +531,101 @@
   let pendingUrl = null;
 
   // SCORING-START
-  // One combined list of checks. 'scope: site' checks run once for the whole website;
-  // 'scope: pages' checks run on every scanned page and are combined into a single result.
-  //   mode 'any'   = one good page is enough to show the site has it (e.g. business entity schema)
-  //   mode 'ratio' = score scales with how many pages pass
-  // Points add up to 100. Pass = full points, Warn = half, Fail = 0.
-  const CHECKS = [
-    { key: 'entity', scope: 'pages', mode: 'any', points: 13, label: 'AI Business entity schema',
-      why: 'AI can tell exactly who you are, what you do and where you operate, so it can name you correctly in answers.',
-      fix: 'Add Organization or LocalBusiness schema (Yoast or Rank Math can do this) so AI can identify your business.',
-      warn: 'Your pages have some schema, but nothing that marks you as an Organization or LocalBusiness.' },
-    { key: 'faq', scope: 'pages', mode: 'any', points: 10, label: 'AI FAQ content & FAQ Page schema',
-      why: 'Question-and-answer content marked up as FAQPage is easy for AI to quote directly.',
-      fix: 'Add a Q&A section with FAQPage schema to your key pages.',
-      warn: 'You have question-style headings but no FAQPage schema. Marking them up makes them much easier for AI to quote.' },
-    { key: 'headings', scope: 'pages', mode: 'ratio', points: 9, label: 'AI Heading structure',
-      phrase: 'have one clear H1 and organized H2 sections',
-      why: 'AI can pull clean sections and answers out of well-organized pages.',
-      fix: 'Give every page one H1 and break the content into H2 sections.' },
-    { key: 'desc', scope: 'pages', mode: 'ratio', points: 7, label: 'Business description (meta description)',
-      phrase: 'have a clear description',
-      why: 'AI relies on direct, factual descriptions to summarize each page accurately.',
-      fix: 'Write a clear 70-160 character description for every page that says what it offers.' },
-    { key: 'author', scope: 'pages', mode: 'ratio', points: 6, label: 'Author / Person schema',
-      phrase: 'name their author in schema',
-      why: 'Named authors are a trust signal AI weighs when deciding what to cite.',
-      fix: 'Add Article schema with a named author to your blog posts and articles.' },
-    { key: 'lastmod', scope: 'pages', mode: 'ratio', points: 6, label: 'AI Content freshness (date signals)',
-      phrase: 'show an update date from the last 12 months',
-      why: 'AI tends to prefer recently updated content when choosing what to cite.',
-      fix: 'Show visible updated dates and add dateModified to your schema, and refresh older pages.' },
-    { key: 'breadcrumb', scope: 'pages', mode: 'ratio', points: 5, label: 'Breadcrumb schema',
-      phrase: 'have breadcrumb schema',
-      why: 'It shows AI how your pages fit together in your site structure.',
-      fix: 'Add breadcrumb navigation with BreadcrumbList schema to your inner pages.' },
-    { key: 'lang', scope: 'pages', mode: 'ratio', points: 3, label: 'Language declaration',
-      phrase: 'declare their language',
-      why: 'Helps AI process your content in the right language.',
-      fix: 'Add lang="en" (or your language) to the <html> tag.' },
-    { key: 'alt', scope: 'pages', mode: 'ratio', points: 3, label: 'AI Image alt text',
-      phrase: 'have alt text on their images',
-      why: 'Helps AI understand your images, not just your text.',
-      fix: 'Add short, descriptive alt text to your images.' },
-    { key: 'hreflang', scope: 'pages', mode: 'ratio', points: 3, multiLangOnly: true, label: 'hreflang tags',
-      phrase: 'declare their language and region versions',
-      why: 'Tells AI which language or region version of a page to use.',
-      fix: 'Add hreflang tags linking each page to its translated versions.' },
-    { key: 'firewall', scope: 'site', points: 8 },
-    { key: 'gptbot', scope: 'site', points: 5 },
-    { key: 'claudebot', scope: 'site', points: 5 },
-    { key: 'perplexitybot', scope: 'site', points: 5 },
-    { key: 'google-extended', scope: 'site', points: 5 },
-    { key: 'llms', scope: 'site', points: 4 },
-    { key: 'sitemap', scope: 'site', points: 4 },
-    { key: 'llmsfull', scope: 'site', points: 2 }
+  // ===== Central scoring configuration (the on-screen report, PDF, e-mail data and tests all read from here) =====
+  // Category totals must add up to 100. Check weights below use the brief's numbers; within each category they are
+  // scaled so the category total is exact (the page-content checks sum to 51 in the brief, so they scale by 55/51).
+  const CATEGORIES = [
+    { id: 'access',  name: 'AI crawler access',            max: 25 },
+    { id: 'files',   name: 'AI files & discovery',         max: 5 },
+    { id: 'content', name: 'Page content & schema',        max: 55 },
+    { id: 'fresh',   name: 'Freshness & technical basics', max: 15 }
   ];
+  // Product communication bands (not an industry standard). Keep configurable and calibrate on real audits.
+  const SCORE_BANDS = [
+    { min: 90, label: 'Excellent readiness',  color: 'var(--green)', tagBg: 'var(--green-soft)', tagColor: 'var(--green-dark)', note: 'Strong technical and content foundations. Keep monitoring.' },
+    { min: 75, label: 'Good readiness',       color: 'var(--green)', tagBg: 'var(--green-soft)', tagColor: 'var(--green-dark)', note: 'Most foundations are in place. A few remaining issues to address.' },
+    { min: 50, label: 'Needs improvement',    color: 'var(--amber)', tagBg: 'var(--amber-soft)', tagColor: 'var(--amber)',      note: 'Several important readiness signals need attention.' },
+    { min: 0,  label: 'Low readiness',        color: 'var(--red)',   tagBg: 'var(--red-soft)',   tagColor: 'var(--red)',        note: 'Significant technical or content barriers may limit machine understanding and discovery.' }
+  ];
+  const SHOW_FIXES = false;   // true = also show a "recommended fix" line under failed / partial checks
+  const STATUS_LABEL = { pass: 'Passed', warn: 'Partially passed', fail: 'Needs attention', info: 'Informational', na: 'Not applicable', unverified: 'Unable to verify' };
+
+  // scope 'site' = run once for the whole website; scope 'pages' = run on every scanned page and combined.
+  //   mode 'ratio'   = points = weight x (applicable pages passing / applicable pages scanned)
+  //   mode 'entity'  = homepage identity + coverage + name consistency (custom)
+  //   mode 'clarity' = share of 5 clarity signals found across all scanned pages (custom)
+  //   noneFail       = if NO scanned page is applicable the check scores 0 (instead of being excluded)
+  const CHECKS = [
+    // --- AI crawler access (25)
+    { key: 'firewall',         cat: 'access', scope: 'site', weight: 4 },
+    { key: 'oai-searchbot',    cat: 'access', scope: 'site', weight: 6 },
+    { key: 'claude-searchbot', cat: 'access', scope: 'site', weight: 5 },
+    { key: 'perplexitybot',    cat: 'access', scope: 'site', weight: 5 },
+    { key: 'googlebot',        cat: 'access', scope: 'site', weight: 5 },
+    // --- AI files & discovery (5)
+    { key: 'sitemap',          cat: 'files',  scope: 'site', weight: 4 },
+    { key: 'llms',             cat: 'files',  scope: 'site', weight: 1 },
+    // --- Page content & schema (55)
+    { key: 'entity',  cat: 'content', scope: 'pages', mode: 'entity', weight: 12, label: 'AI Business entity schema',
+      fix: 'Add valid Organization or LocalBusiness schema (name, URL, logo, address or social profiles) to your homepage, and keep the business name consistent.' },
+    { key: 'faq',     cat: 'content', scope: 'pages', mode: 'ratio', weight: 8, noneFail: true, label: 'AI FAQ content & FAQ Page schema',
+      phrase: 'have visible FAQs with valid FAQPage schema', noneText: 'No FAQ content was found on the pages scanned.',
+      fix: 'Add a visible Q&A section with matching FAQPage schema to your key pages.' },
+    { key: 'headings', cat: 'content', scope: 'pages', mode: 'ratio', weight: 4, label: 'AI Heading structure',
+      phrase: 'have one clear H1 and a logical H2/H3 hierarchy',
+      fix: 'Give every page one H1 and organize the content under H2/H3 headings without skipping levels.' },
+    { key: 'desc',    cat: 'content', scope: 'pages', mode: 'ratio', weight: 4, label: 'Business description (meta description)',
+      phrase: 'have a unique, descriptive meta description',
+      fix: 'Write a unique 70-160 character description for each page that says what it offers.' },
+    { key: 'author',  cat: 'content', scope: 'pages', mode: 'ratio', weight: 5, label: 'Author / Person schema',
+      phrase: 'credit a named author in schema', naText: 'No article or blog pages were found in the pages scanned.',
+      fix: 'Add Article schema with a named Person author to blog posts and articles.' },
+    { key: 'breadcrumb', cat: 'content', scope: 'pages', mode: 'ratio', weight: 4, label: 'Breadcrumb schema',
+      phrase: 'have breadcrumb schema that matches a visible trail', naText: 'Only the homepage was scanned, where breadcrumbs are not expected.',
+      fix: 'Add visible breadcrumb navigation with matching BreadcrumbList schema to inner pages.' },
+    { key: 'clarity', cat: 'content', scope: 'pages', mode: 'clarity', weight: 8, label: 'Business & Service Content Clarity',
+      fix: 'Explain on your key pages what you do, your services or products, who they are for, where you operate and what sets you apart.' },
+    { key: 'schema',  cat: 'content', scope: 'pages', mode: 'ratio', weight: 6, noneFail: true, label: 'Schema Validity & Consistency',
+      phrase: 'have valid structured data that matches the visible page', noneText: 'No structured data (JSON-LD or Microdata) was found to validate.',
+      fix: 'Fix structured-data errors, include required properties, and make sure the markup matches what visitors see.' },
+    // --- Freshness & technical basics (15)
+    { key: 'lastmod', cat: 'fresh', scope: 'pages', mode: 'ratio', weight: 5, label: 'AI Content freshness (date signals)',
+      phrase: 'show credible publish or update dates', naText: 'No pages with date signals needed this check.',
+      fix: 'Show visible published and updated dates and add datePublished / dateModified to article schema.' },
+    { key: 'lang',    cat: 'fresh', scope: 'pages', mode: 'ratio', weight: 2, label: 'Language declaration',
+      phrase: 'declare a valid page language',
+      fix: 'Add lang="en" (or your language) to the <html> tag.' },
+    { key: 'alt',     cat: 'fresh', scope: 'pages', mode: 'ratio', weight: 2, label: 'AI Image alt text',
+      phrase: 'give their informative images meaningful alt text', naText: 'No informative images were found on the pages scanned.',
+      fix: 'Add short, descriptive alt text to informative images (decorative images can keep an empty alt).' },
+    { key: 'extract', cat: 'fresh', scope: 'pages', mode: 'ratio', weight: 4, label: 'Page content text extractability',
+      phrase: 'have their important text in crawlable HTML',
+      fix: 'Make sure your main text is in the page HTML and not only loaded later by JavaScript.' },
+    { key: 'links',   cat: 'fresh', scope: 'pages', mode: 'ratio', weight: 2, label: 'Internal linking',
+      phrase: 'have crawlable internal links in their body content',
+      fix: 'Link to related pages from within your content using normal, crawlable links.' }
+  ];
+  // Final points per check, scaled so each category adds up exactly to its maximum.
+  CATEGORIES.forEach(cat => {
+    const list = CHECKS.filter(c => c.cat === cat.id);
+    const sum = list.reduce((t, c) => t + c.weight, 0);
+    list.forEach(c => { c.points = c.weight * cat.max / sum; });
+  });
+  const MODEL_TOTAL = CHECKS.reduce((t, c) => t + c.points, 0);
+  if (Math.abs(MODEL_TOTAL - 100) > 1e-6) console.error('Scoring model does not add up to 100:', MODEL_TOTAL);
+
+  // Labels / wording for the site-wide checks that are not defined above (the scanner supplies the details).
+  const SITE_LABELS = {
+    'firewall': 'Firewall / CDN bot-block test (simulated)',
+    'oai-searchbot': 'OAI-SearchBot (ChatGPT Search)',
+    'claude-searchbot': 'Claude-SearchBot (Claude Search)',
+    'perplexitybot': 'PerplexityBot',
+    'googlebot': 'Googlebot (Google Search)',
+    'sitemap': 'XML Sitemap',
+    'llms': 'llms.txt'
+  };
+  const CONTROL_KEYS = ['gptbot', 'claudebot', 'google-extended'];
+  const EXTRA_SITE_KEYS = ['llmsfull', 'skills', 'aiplugin'];
 
   // Shown for information only. They never change the score.
   const INFO_PAGE_CHECKS = [
@@ -589,105 +633,148 @@
     { key: 'og', label: 'Open Graph tags', phrase: 'have complete Open Graph tags', note: 'Controls link previews on social platforms, so it is not scored here.' }
   ];
 
-  // Amber (partial) earns ZERO points: only a full pass scores.
-  const FRAC = { pass: 1, warn: 0, fail: 0 };
-
-  function aggregatePages(check, pageResults) {
+  // Per page: only a full pass counts. A partial ('warn') page earns nothing, the same as a failed page.
+  function pageStatuses(check, pageResults) {
+    const dupCount = {};
+    if (check.key === 'desc') {
+      pageResults.forEach(p => { const d = p.meta && p.meta.desc; if (d) dupCount[d] = (dupCount[d] || 0) + 1; });
+    }
     const vals = [];
     pageResults.forEach(p => {
       const r = p.results && p.results[check.key];
-      if (r && r.status && r.status !== 'na') vals.push({ url: p.url, status: r.status });
+      if (!r || !r.status || r.status === 'na') return;
+      let status = r.status;
+      if (check.key === 'desc' && status === 'pass' && dupCount[p.meta && p.meta.desc] > 1) status = 'warn';  // not unique
+      vals.push({ url: p.url, status });
     });
-    if (!vals.length) return null;
-    const passN = vals.filter(v => v.status === 'pass').length;
-    const warnN = vals.filter(v => v.status === 'warn').length;
-    const n = vals.length;
-    let frac, status;
-    if (check.mode === 'any') {
-      status = passN > 0 ? 'pass' : warnN > 0 ? 'warn' : 'fail';
-      frac = passN > 0 ? 1 : 0;
-    } else {
-      frac = passN / n;                       // only fully passing pages earn points
-      status = frac === 1 ? 'pass' : (passN + warnN) / n >= 0.5 ? 'warn' : 'fail';
-    }
-    return { vals, n, passN, warnN, frac, status };
+    return vals;
+  }
+  function statusFromFrac(f) { return f >= 0.999999 ? 'pass' : f > 0 ? 'warn' : 'fail'; }
+
+  function countsLine(passN, n, total, phrase) {
+    return passN + ' of ' + n + ' applicable page' + (n === 1 ? '' : 's') + ' ' + phrase + '. Pages scanned: ' + total + '.';
   }
 
   function computeScore(siteItems, pageResults, multiLang) {
-    const rows = [];
-    const extras = [];
+    const rows = [];       // every scored check (with its state)
+    const controls = [];   // training / AI-use crawler controls (informational)
+    const extras = [];     // extra signals, not scored
     const siteByKey = {};
     (siteItems || []).forEach(i => { siteByKey[i.key] = i; });
+    const scanned = pageResults.length;
+
+    const exclude = (c, why, label, detail, tag, cls) => {
+      rows.push({ key: c.key, cat: c.cat, scope: c.scope, status: 'info', cls: cls || 'info', label, detail, tag, points: c.points, earned: 0, excluded: true, why });
+    };
 
     CHECKS.forEach(c => {
-      if (c.multiLangOnly && !multiLang) return;
       if (c.scope === 'site') {
         const it = siteByKey[c.key];
-        if (!it) return;
-        if (!(it.status in FRAC)) {            // 'na' (could not be tested / skipped)
-          extras.push({ key: it.key, status: 'info', label: it.label, detail: it.detail, tag: it.tag || 'Not tested' });
+        const label = SITE_LABELS[c.key] || c.key;
+        if (!it) { exclude(c, 'unverified', label, 'This check did not run.', STATUS_LABEL.unverified); return; }
+        if (it.status === 'na') {                         // could not be verified: never counted as a pass
+          exclude(c, 'unverified', label, it.detail, STATUS_LABEL.unverified); return;
+        }
+        if (c.key === 'llms' && it.status !== 'pass') {   // optional file: 0 points when missing, shown as informational
+          rows.push({ key: c.key, cat: c.cat, scope: 'site', status: 'info', cls: 'info', label: 'llms.txt', detail: 'No llms.txt file was found. It is an optional, emerging convention worth only a small part of the score.',
+                      tag: 'Not found · Informational', points: c.points, earned: 0 });
           return;
         }
-        let label = it.label, detail = String(it.detail || '').replace(/\s*Check your bot-protection settings\.\s*$/, '');
-        if (c.key === 'sitemap') label = it.status === 'pass' ? 'AI Sitemap found' : 'AI Sitemap not found';
-        if (c.key === 'llms' && it.status === 'warn') detail = 'No llms.txt file was found on your site.';
-        if (c.key === 'llmsfull' && it.status === 'warn') detail = 'No llms-full.txt file was found on your site.';
-        rows.push({ key: c.key, scope: 'site', status: it.status, label: label, detail: detail, tag: it.tag,
-                    points: c.points, earned: c.points * FRAC[it.status] });
-      } else {
-        const agg = aggregatePages(c, pageResults);
-        if (!agg) return;                      // not applicable to any scanned page
-        let line;
-        if (c.mode === 'any') {
-          line = agg.passN > 0 ? 'Found on ' + agg.passN + ' of ' + agg.n + ' pages scanned.'
-               : agg.warnN > 0 ? 'Only partly found (' + agg.warnN + ' of ' + agg.n + ' pages scanned).'
-               : 'Not found on any of the ' + agg.n + ' pages scanned.';
-        } else {
-          line = agg.passN + ' of ' + agg.n + ' pages ' + c.phrase + '.';
-        }
-        const tail = agg.status === 'pass' ? c.why : '';
-        rows.push({ key: c.key, scope: 'pages', status: agg.status, label: c.label, detail: (line + ' ' + tail).trim(),
-                    tag: (c.mode === 'any' && agg.passN === 0 && agg.warnN > 0) ? 'Partial' : agg.passN + ' of ' + agg.n + ' pages', points: c.points, earned: c.points * agg.frac,
-                    fix: c.fix, pageVals: agg.vals });
+        let detail = String(it.detail || '');
+        rows.push({ key: c.key, cat: c.cat, scope: 'site', status: it.status, cls: it.status, label: c.key === 'sitemap' || c.key === 'llms' ? it.label : label, detail,
+                    tag: STATUS_LABEL[it.status], points: c.points, earned: it.status === 'pass' ? c.points : 0 });
+        return;
       }
+      // ----- page-level checks
+      if (c.mode === 'entity') {
+        const home = pageResults.find(p => p.meta && p.meta.isHome) || pageResults[0];
+        const homeOk = !!(home && home.results.entity && home.results.entity.status === 'pass');
+        const passN = pageResults.filter(p => p.results.entity && p.results.entity.status === 'pass').length;
+        const names = [];
+        pageResults.forEach(p => ((p.meta && p.meta.entityNames) || []).forEach(n => names.push(String(n).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim())));
+        const consistent = names.length > 0 && names.every(n => n === names[0] || n.indexOf(names[0]) !== -1 || names[0].indexOf(n) !== -1);
+        const frac = 0.5 * (homeOk ? 1 : 0) + 0.3 * (passN / scanned) + 0.2 * (consistent ? 1 : 0);
+        const detail = (homeOk ? 'Valid business markup found on your homepage. ' : 'No valid business markup found on your homepage. ') +
+          'Found on ' + passN + ' of ' + scanned + ' pages scanned' + (names.length ? (consistent ? '; the business name is consistent.' : '; the business name is NOT consistent across pages.') : '.');
+        rows.push({ key: c.key, cat: c.cat, scope: 'pages', status: statusFromFrac(frac), cls: statusFromFrac(frac), label: c.label, detail, tag: STATUS_LABEL[statusFromFrac(frac)],
+                    points: c.points, earned: c.points * frac, fix: c.fix,
+                    pageVals: pageResults.map(p => ({ url: p.url, status: (p.results.entity && p.results.entity.status) || 'fail' })) });
+        return;
+      }
+      if (c.mode === 'clarity') {
+        const SIG = [['what', 'what you do'], ['services', 'your services or products'], ['audience', 'who you serve'], ['geo', 'where you operate'], ['diff', 'what sets you apart']];
+        const found = SIG.filter(s => pageResults.some(p => p.meta && p.meta.clarity && p.meta.clarity[s[0]]));
+        const missing = SIG.filter(s => found.indexOf(s) === -1).map(s => s[1]);
+        const frac = found.length / SIG.length;
+        const detail = 'Found ' + found.length + ' of ' + SIG.length + ' clarity signals across the ' + scanned + ' pages scanned.' +
+          (missing.length ? ' Not clearly found: ' + missing.join(', ') + '. (Automated text check, so treat it as a guide.)' : ' (Automated text check, so treat it as a guide.)');
+        rows.push({ key: c.key, cat: c.cat, scope: 'pages', status: statusFromFrac(frac), cls: statusFromFrac(frac), label: c.label, detail, tag: STATUS_LABEL[statusFromFrac(frac)],
+                    points: c.points, earned: c.points * frac, fix: c.fix });
+        return;
+      }
+      const vals = pageStatuses(c, pageResults);
+      const n = vals.length;
+      if (!n) {
+        if (c.noneFail) {
+          rows.push({ key: c.key, cat: c.cat, scope: 'pages', status: 'fail', cls: 'fail', label: c.label, detail: c.noneText + ' Pages scanned: ' + scanned + '.', tag: STATUS_LABEL.fail,
+                      points: c.points, earned: 0, fix: c.fix });
+        } else {
+          exclude(c, 'na', c.label, (c.naText || 'This check did not apply to the pages scanned.') + ' Pages scanned: ' + scanned + '.', STATUS_LABEL.na);
+        }
+        return;
+      }
+      const passN = vals.filter(v => v.status === 'pass').length;
+      const frac = passN / n;                      // brief: (applicable pages passing / applicable pages scanned) x max points
+      rows.push({ key: c.key, cat: c.cat, scope: 'pages', status: statusFromFrac(frac), cls: statusFromFrac(frac), label: c.label,
+                  detail: countsLine(passN, n, scanned, c.phrase), tag: STATUS_LABEL[statusFromFrac(frac)],
+                  points: c.points, earned: c.points * frac, fix: c.fix, pageVals: vals });
     });
 
-    let total = 0, earned = 0;
-    rows.forEach(r => { total += r.points; earned += r.earned; });
-    let pct = total ? Math.round((earned / total) * 100) : 0;
+    // ----- score: unverifiable / not-applicable checks are left out and the rest is rescaled to 100
+    const counted = rows.filter(r => !r.excluded);
+    const total = counted.reduce((t, r) => t + r.points, 0);
+    const earned = counted.reduce((t, r) => t + r.earned, 0);
+    const pct = total ? Math.round((earned / total) * 100) : 0;
+    const unverified = rows.filter(r => r.excluded && r.why === 'unverified');
+    const notApplicable = rows.filter(r => r.excluded && r.why === 'na');
 
-    // Safety cap: a site that blocks both ChatGPT and Claude cannot score well.
-    const g = siteByKey['gptbot'], cl = siteByKey['claudebot'];
-    const capped = !!(g && cl && g.status === 'fail' && cl.status === 'fail' && pct > 40);
-    if (capped) pct = 40;
-
-    // Unscored extras
+    // ----- informational sections
+    CONTROL_KEYS.forEach(k => {
+      const it = siteByKey[k];
+      if (it) controls.push({ key: k, status: 'info', cls: 'info', label: it.label, detail: it.detail, tag: it.tag });
+    });
+    EXTRA_SITE_KEYS.forEach(k => {
+      const it = siteByKey[k];
+      if (it) extras.push({ key: k, status: 'info', cls: 'info', label: it.label, detail: it.detail, tag: it.tag });
+    });
     INFO_PAGE_CHECKS.forEach(ic => {
-      const agg = aggregatePages({ key: ic.key, mode: 'ratio' }, pageResults);
-      if (!agg) return;
-      extras.push({ key: ic.key, status: 'info', label: ic.label,
-                    detail: agg.passN + ' of ' + agg.n + ' pages ' + ic.phrase + '. ' + ic.note,
-                    tag: agg.passN + ' of ' + agg.n + ' pages' });
+      const vals = pageResults.map(p => p.results && p.results[ic.key]).filter(r => r && r.status && r.status !== 'na');
+      if (!vals.length) return;
+      const passN = vals.filter(r => r.status === 'pass').length;
+      extras.push({ key: ic.key, status: 'info', cls: 'info', label: ic.label,
+                    detail: passN + ' of ' + vals.length + ' pages ' + ic.phrase + '. ' + ic.note, tag: passN + ' of ' + vals.length + ' pages' });
     });
-    if (!multiLang) {
-      extras.push({ key: 'hreflang-note', status: 'info', label: 'hreflang tags', detail: 'Your site looks single-language, so hreflang is not needed and does not affect your score.', tag: 'Not needed' });
+    if (multiLang) {
+      const vals = pageResults.map(p => p.results && p.results.hreflang).filter(Boolean);
+      const passN = vals.filter(r => r.status === 'pass').length;
+      extras.push({ key: 'hreflang', status: 'info', cls: 'info', label: 'hreflang tags', detail: passN + ' of ' + vals.length + ' pages declare language/region versions. Not scored.', tag: passN + ' of ' + vals.length + ' pages' });
     }
-    if (siteByKey['ailayer']) {
-      const a = siteByKey['ailayer'];
-      extras.push({ key: 'ailayer', status: 'info', label: a.label, detail: a.detail, tag: a.tag });
-    }
+    notApplicable.forEach(r => extras.push({ key: r.key, status: 'info', cls: 'info', label: r.label, detail: r.detail, tag: STATUS_LABEL.na }));
 
-    // The content/schema checks sit at the bottom (in this order); everything else is sorted by status.
-    const BOTTOM = ['entity', 'faq', 'headings', 'breadcrumb', 'desc', 'alt'];
-    const order = { fail: 0, warn: 1, pass: 2 };
-    const grp = (r) => BOTTOM.indexOf(r.key) === -1 ? 0 : 1;
-    rows.sort((a, b) => grp(a) - grp(b) ||
-      (grp(a) ? BOTTOM.indexOf(a.key) - BOTTOM.indexOf(b.key) : (order[a.status] - order[b.status] || b.points - a.points)));
+    // ----- grouped, ordered rows: needs-attention first, then partial, then passed, then informational
+    const order = { fail: 0, warn: 1, pass: 2, info: 3 };
+    const groups = CATEGORIES.map(cat => {
+      const list = rows.filter(r => r.cat === cat.id && !(r.excluded && r.why === 'na'));
+      list.sort((a, b) => order[a.status] - order[b.status]);
+      return { id: cat.id, name: cat.name, rows: list };
+    });
+    const shownRows = [].concat.apply([], groups.map(g => g.rows));
 
     const counts = { pass: 0, warn: 0, fail: 0 };
-    rows.forEach(r => { counts[r.status]++; });
+    shownRows.forEach(r => { if (r.status in counts) counts[r.status]++; });
 
-    return { pct, capped, rows, extras, counts, pageCount: pageResults.length };
+    return { pct, capped: false, rows: shownRows, groups, controls, extras, counts, pageCount: scanned,
+             unverifiedCount: unverified.length, unverifiedShare: Math.round(unverified.reduce((t, r) => t + r.points, 0)) };
   }
   // SCORING-END
 
@@ -844,9 +931,7 @@
   }
 
   function scoreMeta(pct) {
-    if (pct >= 80) return { label: 'AI-ready', color: 'var(--green)', tagBg: 'var(--green-soft)', tagColor: 'var(--green-dark)' };
-    if (pct >= 50) return { label: 'Needs work', color: 'var(--amber)', tagBg: 'var(--amber-soft)', tagColor: 'var(--amber)' };
-    return { label: 'Hard for AI', color: 'var(--red)', tagBg: 'var(--red-soft)', tagColor: 'var(--red)' };
+    return SCORE_BANDS.find(b => pct >= b.min) || SCORE_BANDS[SCORE_BANDS.length - 1];
   }
 
   function fmtPts(n) { return (Math.round(n * 10) / 10).toString(); }
@@ -856,15 +941,16 @@
   }
 
   function rowHtml(r) {
-    const pts = '';
+    const cls = r.cls || r.status;
     const pages = (r.pageVals && r.pageVals.length > 1)
       ? '<details class="pg-details"><summary>View pages</summary><ul>' +
         r.pageVals.map(v => '<li><span class="pg-ic ' + v.status + '">' + iconChar(v.status) + '</span>' + esc(pathOf(v.url)) + '</li>').join('') +
         '</ul></details>' : '';
+    const fix = (SHOW_FIXES && r.fix && (r.status === 'warn' || r.status === 'fail')) ? '<div class="check-fix">Recommended fix: ' + esc(r.fix) + '</div>' : '';
     return '<div class="check-item">' +
-      '<div class="check-left"><div class="check-icon ' + r.status + '">' + iconChar(r.status) + '</div>' +
-      '<div><div class="check-title">' + esc(r.label) + '</div><div class="check-detail">' + esc(r.detail) + '</div>' + pages + '</div></div>' +
-      '<div class="check-right">' + (r.tag ? '<span class="check-tag ' + r.status + '">' + esc(r.tag) + '</span>' : '') + pts + '</div>' +
+      '<div class="check-left"><div class="check-icon ' + cls + '">' + iconChar(cls) + '</div>' +
+      '<div><div class="check-title">' + esc(r.label) + '</div><div class="check-detail">' + esc(r.detail) + '</div>' + fix + pages + '</div></div>' +
+      '<div class="check-right">' + (r.tag ? '<span class="check-tag ' + cls + '">' + esc(r.tag) + '</span>' : '') + '</div>' +
       '</div>';
   }
 
@@ -888,15 +974,15 @@
     const m = scoreMeta(result.pct);
     const R = 62, C = 2 * Math.PI * R, off = C - (result.pct / 100) * C;
     let host = url; try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (e) {}
-    const total = result.rows.length;
-    const lbl = { pass: 'Passed', warn: 'Improvement', fail: 'Critical Issue' };
+    const total = result.counts.pass + result.counts.warn + result.counts.fail;
+    const lbl = { pass: 'Passed', warn: 'Partially passed', fail: 'Needs attention' };
+    const firstSentence = (t) => String(t || '').split(/(?<=[a-z0-9\)])\.\s/)[0];
     const clip = (t, n) => { t = String(t || ''); return t.length > n ? t.slice(0, n - 1).trim() + '…' : t; };
-    const row = (r) => '<div class="pb prow"><div class="pi ' + r.status + '">' + iconChar(r.status) + '</div>' +
-      '<div class="pt"><b>' + esc(r.label) + '</b><span>' + esc(clip(r.detail, 78)) + '</span></div>' +
-      '<div class="pp ' + r.status + '">' + lbl[r.status] + '</div><div class="pc">›</div></div>';
-    const ex = (r) => '<div class="pb prow"><div class="pi info">i</div>' +
-      '<div class="pt"><b>' + esc(r.label) + '</b><span>' + esc(clip(r.detail, 72)) + '</span></div>' +
-      '<div class="pp info">' + esc(clip(r.tag || 'Info', 18)) + '</div><div class="pc">›</div></div>';
+    const row = (r) => { const cls = r.cls || r.status; return '<div class="pb prow"><div class="pi ' + cls + '">' + iconChar(cls) + '</div>' +
+      '<div class="pt"><b>' + esc(r.label) + '</b><span>' + esc(clip(firstSentence(r.detail), 74)) + '</span></div>' +
+      '<div class="pp ' + cls + '">' + esc(r.status === 'info' ? clip(String(r.tag || 'Info').replace(' · Informational', ''), 22) : lbl[r.status]) + '</div></div>'; };
+    const chip = (r) => '<span class="chip"><b>' + esc(String(r.label).replace(/\s*\(.*\)/, '').replace(/ \(simulated\)/, '')) + '</b> ' + esc(clip(String(r.tag || '').replace(' · Informational', ''), 20)) + '</span>';
+    const catHead = (name) => '<div class="pb ah"><h3 style="font-size:12px;color:#0F2A47;margin:0">' + esc(name) + '</h3></div>';
     return `
 <style>
 .pdf{width:794px;box-sizing:border-box;padding:0 28px 8px;background:#fff;font-family:inherit;color:#14171F}
@@ -925,14 +1011,16 @@
 .pdf .sidec .side-illus{height:176px}
 .pdf .sidec .side-contact{font-size:14.5px}
 .pdf .main{flex:1;min-width:0}.pdf h3{font-size:14px;margin:0 0 2px}.pdf .sub{font-size:10px;color:#5B6270;margin:0 0 6px}
-.pdf .prow{display:flex;align-items:center;gap:9px;padding:4px 0;border-top:1px solid #E4E7EC}
+.pdf .prow{display:flex;align-items:center;gap:9px;padding:3px 0;border-top:1px solid #E4E7EC}
 .pdf .pi{width:20px;height:20px;border-radius:50%;flex:none;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .pdf .pi.pass{background:#1E8E3E}.pdf .pi.warn{background:#C8862B}.pdf .pi.fail{background:#C0392B}.pdf .pi.info{background:#9AA1AC}
 .pdf .pt{flex:1;min-width:0}.pdf .pt b{display:block;font-size:11.5px}.pdf .pt span{display:block;font-size:9.5px;color:#5B6270;line-height:1.4}
 .pdf .pp{font-size:9.5px;font-weight:700;padding:3px 9px;border-radius:5px;white-space:nowrap;flex:none}
 .pdf .pp.pass{background:#EAF7EE;color:#17692F}.pdf .pp.warn{background:#FBF1E1;color:#9a6416}.pdf .pp.fail{background:#FDECEA;color:#C0392B}.pdf .pp.info{background:#F1F3F6;color:#5B6270}
 .pdf .pc{color:#9AA1AC;font-size:15px;flex:none}
-.pdf .ah{margin-top:10px}
+.pdf .ah{margin-top:8px}
+.pdf .chips{display:flex;flex-wrap:wrap;gap:4px}
+.pdf .chip{background:#F1F3F6;border-radius:999px;padding:3px 9px;font-size:9px;color:#5B6270}.pdf .chip b{color:#14171F}
 .pdf .cta{background:#EAF7EE;border-radius:12px 12px 0 0;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:14px}
 .pdf .cta b{font-size:13.5px;display:block}.pdf .cta span{font-size:10px;color:#5B6270}
 .pdf .cta a{background:#1E8E3E;color:#fff;font-weight:700;font-size:11px;padding:9px 16px;border-radius:999px;white-space:nowrap;text-decoration:none}
@@ -947,33 +1035,34 @@
     <div class="top">
       <div><span class="pill">AI Visibility Report for: <b>${esc(host)}</b></span>
         <h1>Your Website AI Readiness Report is <em>Ready!</em> 🚀</h1>
-        <p class="intro">A complete analysis of how AI platforms like ChatGPT, Claude, Gemini and Perplexity discover, understand and cite your website, based on site-wide checks plus ${result.pageCount} page${result.pageCount === 1 ? '' : 's'} scanned, with clear issues, fixes and priorities.</p>
+        <p class="intro">A complete analysis of how AI platforms like ChatGPT, Claude, Gemini and Perplexity discover, understand and cite your website, based on site-wide checks plus ${result.pageCount} page${result.pageCount === 1 ? '' : 's'} scanned, with a clear view of what is working and what needs attention.</p>
         <span class="urlb">${esc(url)}</span></div>
       <div class="gw"><svg width="140" height="140" viewBox="0 0 140 140"><circle cx="70" cy="70" r="${R}" stroke="#E4E7EC" stroke-width="11" fill="none"/><circle cx="70" cy="70" r="${R}" stroke="${m.color}" stroke-width="11" fill="none" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 70 70)"/></svg>
         <div class="gc"><b style="color:${m.color}">${result.pct}<small style="font-size:13px;color:#5B6270">/100</small></b><small>AI READINESS<br>SCORE</small></div></div>
     </div>
     <div class="stats">
       <div class="st"><i style="background:#EAF7EE;color:#1E8E3E">✓</i><div><b>${result.counts.pass}</b><small>Passed Checks</small></div></div>
-      <div class="st"><i style="background:#FBF1E1;color:#C8862B">!</i><div><b>${result.counts.warn}</b><small>Improvements</small></div></div>
-      <div class="st"><i style="background:#FDECEA;color:#C0392B">✕</i><div><b>${result.counts.fail}</b><small>Critical Issues</small></div></div>
+      <div class="st"><i style="background:#FBF1E1;color:#C8862B">!</i><div><b>${result.counts.warn}</b><small>Partially Passed</small></div></div>
+      <div class="st"><i style="background:#FDECEA;color:#C0392B">✕</i><div><b>${result.counts.fail}</b><small>Needs Attention</small></div></div>
       <div class="st"><i style="background:#EEF2FF;color:#4F5FDB">◎</i><div><b>${result.counts.pass}/${total}</b><small>Total Checks</small></div></div>
     </div>
   </div>
   <div class="body">
     <div class="sidec">
-<div class="about"><b>About This Report</b>This report evaluates the key factors that help AI platforms find, read and accurately understand your website.${result.capped ? '<br><br><b style="color:#C0392B">Score capped at 40:</b> GPTBot and ClaudeBot are blocked.' : ''}</div>
+<div class="about"><b>About This Report</b>This report evaluates the key factors that help AI platforms find, read and accurately understand your website.</div>
       ${SIDE_CARD}
     </div>
     <div class="main">
       <div class="pb"><h3>Audit Overview</h3><p class="sub">A detailed breakdown of key checks, their status and what you can do next.</p></div>
-      ${result.rows.map(row).join('')}
-      ${result.extras.length ? '<div class="pb ah"><h3>Additional Checks (Advanced)</h3></div>' + result.extras.map(ex).join('') : ''}
+      ${result.groups.map(g => g.rows.length ? catHead(g.name) + g.rows.map(row).join('') : '').join('')}
+      ${result.controls.length ? '<div class="pb ah"><h3 style="font-size:12px;color:#0F2A47;margin:0 0 4px">Training / AI-use crawler controls (not scored)</h3><div class="chips">' + result.controls.map(chip).join('') + '</div></div>' : ''}
+      ${result.extras.length ? '<div class="pb ah"><h3 style="font-size:12px;color:#0F2A47;margin:0 0 4px">Extra signals — not scored</h3><div class="chips">' + result.extras.map(chip).join('') + '</div></div>' : ''}
     </div>
   </div>
   <div class="pb">
     <div class="cta"><div><b>Ready to fix what's holding your site back?</b><span>Get a custom AI visibility plan with prioritized fixes and expert support.</span></div><a>Get My AI Visibility Plan →</a></div>
     <div class="foot"><div><b>🤖 If you want to Rank your business in AI Platforms like ChatGPT, Perplexity, Claude or Google AI Overview, please contact us.</b></div><div>📞 8796271027<br>✉ enquiry@seozar.co</div></div>
-    <div class="disc">Automated AI-readability check of your whole website: site-wide settings plus pages from across your main sections. It does not test whether AI models currently mention your business. seozar.co</div>
+    <div class="disc">Automated technical and content readiness assessment of your whole website. It is not a guarantee that any AI platform will mention or cite your business. The firewall test is simulated and does not verify real crawler IPs. seozar.co</div>
   </div>
 </div>`;
   }
@@ -1062,7 +1151,7 @@
         <div class="report-hero-text">
           <span class="badge-pill">AUDIT COMPLETED · ${esc(dateStr)}</span>
           <h2>Whole-Website AI Readiness Report is <span class="accent">Ready!</span> 🚀</h2>
-          <p>Here's how readable your website is to AI systems like ChatGPT, Claude, and Perplexity, based on site-wide checks plus ${esc(pagesNote)}.</p>
+          <p>A technical and content readiness assessment of how easily AI systems like ChatGPT, Claude, Gemini and Perplexity can access and understand your website, based on site-wide checks plus ${esc(pagesNote)}.</p>
           <div class="report-url-row">
             <span>${esc(url)}</span>
             <button id="reaudit-btn">Re-audit this site</button>
@@ -1089,11 +1178,11 @@
         </div>
         <div class="stat-card">
           <div class="stat-icon warn">!</div>
-          <div><strong>${result.counts.warn}</strong><small>Improvements</small></div>
+          <div><strong>${result.counts.warn}</strong><small>Partially Passed</small></div>
         </div>
         <div class="stat-card">
           <div class="stat-icon fail">✕</div>
-          <div><strong>${result.counts.fail}</strong><small>Critical Issues</small></div>
+          <div><strong>${result.counts.fail}</strong><small>Needs Attention</small></div>
         </div>
         <div class="stat-card">
           <div class="stat-icon score">↗</div>
@@ -1104,18 +1193,19 @@
       <div class="overview-panel">
         <div class="side-col">
         <div class="overview-side">
-          <div class="trophy">${result.pct >= 80 ? '🏆' : result.pct >= 50 ? '🔧' : '⚠️'}</div>
-          <strong>${result.pct >= 80 ? 'Good Work!' : result.pct >= 50 ? 'Almost There' : 'Needs Attention'}</strong>
-          <p>${result.pct >= 80 ? 'Your website is in good shape for AI.' : 'Your site has real opportunities to become easier for AI to read and cite.'}</p>
+          <div class="trophy">${result.pct >= 75 ? '🏆' : result.pct >= 50 ? '🔧' : '⚠️'}</div>
+          <strong>${result.pct >= 90 ? 'Excellent!' : result.pct >= 75 ? 'Good Work!' : result.pct >= 50 ? 'Almost There' : 'Needs Attention'}</strong>
+          <p>${esc(meta.note)}</p>
         </div>
           ${SIDE_CARD}
         </div>
         <div class="overview-list">
           <h3>Audit Overview</h3>
           <p>A detailed breakdown of the key checks and where your site stands on each.</p>
-          ${result.capped ? '<div class="cap-note">Your score is capped at 40 because both GPTBot and ClaudeBot are blocked.</div>' : ''}
-          ${result.rows.map(rowHtml).join('')}
-          ${result.extras.length ? '<div class="extras-title">Extra signals (not scored)</div>' + result.extras.map(rowHtml).join('') : ''}
+          ${result.unverifiedCount ? '<div class="score-note">' + result.unverifiedCount + ' check' + (result.unverifiedCount === 1 ? ' was' : 's were') + ' marked "Unable to verify" and left out. Your score is calculated from the checks that could be verified (about ' + (100 - result.unverifiedShare) + '% of the full model).</div>' : ''}
+          ${result.groups.map(g => g.rows.length ? '<div class="cat-title"><span>' + esc(g.name) + '</span><small>' + g.rows.filter(r => r.status === 'pass').length + ' of ' + g.rows.length + ' passed</small></div>' + g.rows.map(rowHtml).join('') : '').join('')}
+          ${result.controls.length ? '<div class="extras-title">Training / AI-use crawler controls (informational, not scored)</div>' + result.controls.map(rowHtml).join('') : ''}
+          ${result.extras.length ? '<div class="extras-title">Extra signals — not scored</div>' + result.extras.map(rowHtml).join('') : ''}
           <details class="pg-details scanned-pages"><summary>Pages we scanned (${result.pageCount})</summary><ul>
             ${pageList.map(u => '<li>' + esc(u) + '</li>').join('')}
           </ul></details>
@@ -1140,7 +1230,7 @@
 
 
       <div class="report-footer">
-        <div class="disclaimer">⚠ Disclaimer: This is an automated AI-readability check of your whole website: site-wide settings plus pages from across your main sections. It doesn't test whether AI models currently mention or recommend your business. For a full AI-visibility strategy, contact our team.</div>
+        <div class="disclaimer">⚠ Disclaimer: This is an automated technical and content readiness assessment of your whole website: site-wide settings plus pages from across your main sections. It is not a guarantee or prediction that ChatGPT, Claude, Gemini, Perplexity or any other AI platform will mention, recommend or cite your business. The crawler firewall test is simulated and does not verify real crawler IP addresses. For a full AI-visibility strategy, contact our team.</div>
         <button class="share-btn" id="copy-link-btn">Copy report link</button>
       </div>
     `;
