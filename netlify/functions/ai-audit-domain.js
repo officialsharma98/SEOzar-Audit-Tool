@@ -6,13 +6,18 @@
 //
 // Returns: { items: [...], pages: [{url, lastmod}], multiLang: boolean }
 // Each item: { key, status: 'pass'|'warn'|'fail'|'na'|'info', label, detail, tag }
+//   'na'   = could not be verified (shown as "Unable to verify"; never counted as a pass)
+//   'info' = informational / optional signal
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+// Simulated crawler User-Agents (used ONLY for the firewall test; real crawler IPs are not verified)
 const BOT_UAS = {
-  gptbot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.1; +https://openai.com/gptbot)',
-  claudebot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)',
-  perplexitybot: 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)'
+  'oai-searchbot': 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot',
+  'claude-searchbot': 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-SearchBot/1.0; +Claude-SearchBot@anthropic.com)',
+  'perplexitybot': 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
+  'googlebot': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 };
+const BOT_NAMES = { 'oai-searchbot': 'OAI-SearchBot', 'claude-searchbot': 'Claude-SearchBot', 'perplexitybot': 'PerplexityBot', 'googlebot': 'Googlebot' };
 const MAX_PAGES = 10;
 const DEADLINE_MS = 8500; // Netlify's default function limit is 10s; stay safely under it
 const SKIP_EXT = /\.(jpe?g|png|gif|svg|webp|avif|pdf|zip|xml|css|js|json|mp4|mp3|ico|woff2?|txt|docx?|xlsx?)$/i;
@@ -37,16 +42,17 @@ exports.handler = async function (event) {
 
   try {
     // ---------- Batch 1: everything we can fetch in parallel ----------
-    const [robotsR, llmsR, llmsFullR, skillsR, pluginR, homeBrowser, homeGpt, homeClaude, homePerp, smA, smB, smC] = await Promise.all([
+    const [robotsR, llmsR, llmsFullR, skillsR, pluginR, homeBrowser, homeOai, homeClaudeS, homePerp, homeGoogle, smA, smB, smC] = await Promise.all([
       fetchRaw(origin + '/robots.txt', { timeout: tmo(4000) }),
       fetchRaw(origin + '/llms.txt', { timeout: tmo(4000) }),
       fetchRaw(origin + '/llms-full.txt', { timeout: tmo(4000) }),
       fetchRaw(origin + '/skills.json', { timeout: tmo(4000) }),
       fetchRaw(origin + '/.well-known/ai-plugin.json', { timeout: tmo(4000) }),
       fetchRaw(origin + '/', { timeout: tmo(5000) }),
-      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS.gptbot }),
-      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS.claudebot }),
-      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS.perplexitybot }),
+      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS['oai-searchbot'] }),
+      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS['claude-searchbot'] }),
+      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS['perplexitybot'] }),
+      fetchRaw(origin + '/', { timeout: tmo(5000), ua: BOT_UAS['googlebot'] }),
       fetchRaw(origin + '/sitemap.xml', { timeout: tmo(4000) }),
       fetchRaw(origin + '/sitemap_index.xml', { timeout: tmo(4000) }),
       fetchRaw(origin + '/wp-sitemap.xml', { timeout: tmo(4000) })
@@ -54,16 +60,22 @@ exports.handler = async function (event) {
 
     const items = [];
 
-    // ---------- AI crawler access (robots.txt) ----------
+    // ---------- Crawler access (robots.txt) ----------
+    // SCORED: search / answer-engine crawlers. INFORMATIONAL: training-oriented controls.
     const robotsText = robotsR.ok ? robotsR.text : '';
+    const robotsKnown = !!(robotsR.ok && !/^\s*<(!doctype|html)/i.test(robotsR.text)) || robotsR.status === 404 || robotsR.status === 410;
     const groups = parseRobots(robotsText);
-    const bots = [
-      { key: 'gptbot', agent: 'gptbot', label: 'GPTBot (ChatGPT)' },
-      { key: 'claudebot', agent: 'claudebot', label: 'ClaudeBot (Claude)' },
+    const searchBots = [
+      { key: 'oai-searchbot', agent: 'oai-searchbot', label: 'OAI-SearchBot (ChatGPT Search)' },
+      { key: 'claude-searchbot', agent: 'claude-searchbot', label: 'Claude-SearchBot (Claude Search)' },
       { key: 'perplexitybot', agent: 'perplexitybot', label: 'PerplexityBot' },
-      { key: 'google-extended', agent: 'google-extended', label: 'Google-Extended (AI Overviews)' }
+      { key: 'googlebot', agent: 'googlebot', label: 'Googlebot (Google Search)' }
     ];
-    for (const bot of bots) {
+    for (const bot of searchBots) {
+      if (!robotsKnown) {
+        items.push(item(bot.key, 'na', bot.label, 'We could not read your robots.txt file reliably, so we could not verify access for this crawler.', 'Unable to verify'));
+        continue;
+      }
       const st = checkBotAccess(groups, bot.agent);
       if (st === 'blocked') {
         items.push(item(bot.key, 'fail', `${bot.label} is blocked`, `Your robots.txt blocks ${bot.label} from your whole site, so it can't read any of your pages.`, 'Blocked'));
@@ -73,24 +85,47 @@ exports.handler = async function (event) {
         items.push(item(bot.key, 'pass', `${bot.label} can access your site`, `Nothing in your robots.txt stops ${bot.label} from reading your content.`, 'Allowed'));
       }
     }
+    const controlBots = [
+      { key: 'gptbot', agent: 'gptbot', label: 'GPTBot (OpenAI model training)' },
+      { key: 'claudebot', agent: 'claudebot', label: 'ClaudeBot (Anthropic model training)' },
+      { key: 'google-extended', agent: 'google-extended', label: 'Google-Extended (Google AI-use control)' }
+    ];
+    const controlNote = {
+      'gptbot': 'GPTBot is OpenAI\'s training crawler. It is separate from OAI-SearchBot and is not part of your score.',
+      'claudebot': 'ClaudeBot is Anthropic\'s training crawler. It is separate from Claude-SearchBot and is not part of your score.',
+      'google-extended': 'Google-Extended is a control token for Google\'s extended AI uses. It is not the crawler behind Google Search or AI Overviews and is not part of your score.'
+    };
+    for (const bot of controlBots) {
+      if (!robotsKnown) {
+        items.push(item(bot.key, 'info', bot.label, controlNote[bot.key] + ' We could not read your robots.txt.', 'Unable to verify'));
+        continue;
+      }
+      const st = checkBotAccess(groups, bot.agent);
+      const word = st === 'blocked' ? 'Blocked by robots.txt' : st === 'partial' ? 'Partially restricted' : 'Allowed';
+      items.push(item(bot.key, 'info', bot.label, `${word}. ${controlNote[bot.key]}`, word === 'Allowed' ? 'Allowed' : st === 'blocked' ? 'Blocked' : 'Partial'));
+    }
 
-    // ---------- llms.txt / llms-full.txt ----------
+    // ---------- llms.txt (scored, 1 point) and optional extra signals (not scored) ----------
     const hasLlms = isPlainText(llmsR);
     const hasLlmsFull = isPlainText(llmsFullR);
     if (hasLlms) {
-      items.push(item('llms', 'pass', 'llms.txt found', 'You have a dedicated file that summarizes your site for AI systems. It is still a new and uncommon standard.', 'Found'));
+      items.push(item('llms', 'pass', 'llms.txt found', 'You have a readable llms.txt file that summarizes your site for AI systems. It is an optional, emerging convention.', 'Found'));
     } else {
-      items.push(item('llms', 'warn', 'No llms.txt file', 'A new, still-emerging standard. Not urgent, but a short llms.txt helps AI tools understand your business quickly.', 'Not found'));
+      items.push(item('llms', 'info', 'llms.txt not found', 'llms.txt is an optional, emerging convention. It is worth only a small part of your score.', 'Not found · Informational'));
     }
-    if (hasLlmsFull) {
-      items.push(item('llmsfull', 'pass', 'llms-full.txt found', 'You also publish the extended version with fuller content for AI systems.', 'Found'));
-    } else if (hasLlms) {
-      items.push(item('llmsfull', 'warn', 'No llms-full.txt file', 'You have llms.txt but not the extended llms-full.txt, which gives AI tools your fuller content in one place.', 'Not found'));
-    } else {
-      items.push(item('llmsfull', 'na', 'llms-full.txt', 'Skipped because there is no llms.txt yet.', 'Skipped'));
-    }
+    items.push(hasLlmsFull
+      ? item('llmsfull', 'info', 'llms-full.txt found', 'Optional bonus signal. Not scored.', 'Found')
+      : item('llmsfull', 'info', 'llms-full.txt', 'Optional bonus signal. No deduction if it is absent.', 'Not found · Informational'));
+    const skillsOk = isJsonObject(skillsR);
+    const skillsPresent = isPlainText(skillsR);
+    items.push(skillsOk ? item('skills', 'info', 'skills.json found', 'Valid JSON manifest found. Optional, custom signal. Not scored.', 'Found')
+      : skillsPresent ? item('skills', 'info', 'skills.json found (invalid JSON)', 'A skills.json file exists but is not valid JSON. Optional signal. Not scored.', 'Found')
+      : item('skills', 'info', 'skills.json', 'Optional, custom manifest. No deduction if it is absent.', 'Not found · Informational'));
+    const pluginOk = isJsonObject(pluginR);
+    items.push(pluginOk ? item('aiplugin', 'info', 'ai-plugin.json found', 'Legacy ChatGPT Plugins manifest found. Informational only. Not scored.', 'Found')
+      : item('aiplugin', 'info', '/.well-known/ai-plugin.json', 'Legacy ChatGPT Plugins manifest. Informational only. No deduction if it is absent.', 'Not found · Informational'));
 
-    // ---------- Sitemap ----------
+    // ---------- XML Sitemap ----------
     let sm = [smA, smB, smC].find(isSitemap);
     if (!sm && remaining() > 1500) {
       const declared = declaredSitemaps(robotsText).slice(0, 2);
@@ -102,10 +137,12 @@ exports.handler = async function (event) {
     let entries = [];
     let sitemapCount = null;
     let indexCount = null;
+    let smWellFormed = false;
     if (sm) {
       if (/<sitemapindex/i.test(sm.text)) {
         const kids = locs(sm.text);
         indexCount = kids.length;
+        smWellFormed = kids.length > 0;
         const chosen = rankChildren(kids).filter(u => safeHttp(u)).slice(0, 4);
         if (chosen.length && remaining() > 1500) {
           const rs = await Promise.all(chosen.map(u => fetchRaw(u, { timeout: tmo(3500) })));
@@ -114,28 +151,24 @@ exports.handler = async function (event) {
       } else {
         entries = sitemapEntries(sm.text);
         sitemapCount = entries.length;
+        smWellFormed = entries.length > 0;
       }
     }
-    if (sm) {
+    if (sm && smWellFormed) {
       const detail = indexCount !== null
-        ? `Found a sitemap index listing ${indexCount} sitemaps. AI crawlers use it to discover every page on your site.`
-        : `Found, listing ${sitemapCount} page${sitemapCount === 1 ? '' : 's'}. AI crawlers use it to discover every page on your site.`;
-      items.push(item('sitemap', 'pass', 'Sitemap found', detail, 'Found'));
+        ? `Found a sitemap index listing ${indexCount} sitemaps. Search crawlers use it to discover your pages. It is a general discovery signal, not AI-specific.`
+        : `Found, listing ${sitemapCount} page${sitemapCount === 1 ? '' : 's'}. Search crawlers use it to discover your pages. It is a general discovery signal, not AI-specific.`;
+      items.push(item('sitemap', 'pass', 'XML Sitemap found', detail, 'Found'));
+    } else if (sm) {
+      items.push(item('sitemap', 'warn', 'XML Sitemap found but empty', 'A sitemap file exists but does not list any URLs, so crawlers cannot use it to discover your pages.', 'Needs attention'));
     } else {
-      items.push(item('sitemap', 'fail', 'No sitemap found', 'Without a sitemap, AI crawlers may only ever see your homepage and miss the rest of your site.', 'Not found'));
+      items.push(item('sitemap', 'fail', 'XML Sitemap not found', 'Without an XML sitemap, crawlers may only ever see your homepage and miss the rest of your site. A sitemap is a general discovery signal, not AI-specific.', 'Not found'));
     }
 
-    // ---------- Firewall / CDN bot-block test ----------
-    items.push(firewallItem(homeBrowser, { gptbot: homeGpt, claudebot: homeClaude, perplexitybot: homePerp }));
-
-    // ---------- AI layer files (informational, not scored) ----------
-    const skillsOk = isJsonObject(skillsR);
-    const pluginOk = isJsonObject(pluginR);
-    if (skillsOk || pluginOk) {
-      items.push(item('ailayer', 'info', 'AI layer files found', `Found ${[skillsOk ? '/skills.json' : null, pluginOk ? '/.well-known/ai-plugin.json' : null].filter(Boolean).join(' and ')}. These machine-readable files tell AI agents what your site or business can do. Very few sites have them yet.`, 'Found'));
-    } else {
-      items.push(item('ailayer', 'info', 'AI layer files (bonus)', 'No /skills.json or /.well-known/ai-plugin.json found. These are very new and almost no sites have them, so this is not counted in your score.', 'Not found'));
-    }
+    // ---------- Firewall / CDN simulated bot test ----------
+    items.push(firewallItem(homeBrowser, {
+      'oai-searchbot': homeOai, 'claude-searchbot': homeClaudeS, 'perplexitybot': homePerp, 'googlebot': homeGoogle
+    }));
 
     // ---------- Page discovery ----------
     const pages = pickPages(origin, entries, homeBrowser.ok ? homeBrowser.text : '');
@@ -381,28 +414,50 @@ function detectCdn(hdr) {
   if (hdr['x-vercel-id']) return 'Vercel';
   return '';
 }
-function looksBlocked(r) {
-  if (!r || r.error || r.status === 0) return true;
-  if ([401, 403, 429, 451, 503].includes(r.status)) return true;
-  if (r.status === 200 && r.text.length < 15000 && /just a moment|checking your browser|attention required|pardon our interruption|access denied|are you a robot/i.test(r.text)) return true;
-  return false;
+const CHALLENGE_RE = /just a moment|checking your browser|attention required|pardon our interruption|access denied|are you a robot|verify you are (a )?human|captcha|cf-chl|request unsuccessful|incapsula incident|you have been blocked|bot detected|unusual traffic/i;
+// What happened to a single request: 'ok' | 'error' (timeout / no response) | 'status' (4xx/5xx) | 'challenge' (page body is a CAPTCHA / challenge)
+function classifyResponse(r) {
+  if (!r || r.error || r.status === 0) return 'error';
+  if ([401, 403, 429, 451].includes(r.status) || r.status >= 500) return 'status';
+  if (r.status >= 400) return 'status';
+  if (r.text.length < 20000 && CHALLENGE_RE.test(r.text)) return 'challenge';
+  return 'ok';
 }
+function looksBlocked(r) { return classifyResponse(r) !== 'ok'; }
+const DISCLOSE = ' This is a simulated User-Agent test only. It does not verify real crawler IP addresses.';
 function firewallItem(browser, botRes) {
-  const label = 'Firewall / CDN bot-block test';
-  if (looksBlocked(browser)) {
-    return item('firewall', 'na', label, 'We could not run this test because the site also refused our normal, browser-style request. It may be protected by a strict firewall.', 'Not tested');
+  const label = 'Firewall / CDN bot-block test (simulated)';
+  const bk = classifyResponse(browser);
+  if (bk !== 'ok') {
+    const issue = bk === 'error' || (browser && browser.status >= 500);
+    return item('firewall', 'na', label,
+      (issue ? 'Website access issue detected: our normal browser-style request did not get a usable page, so we could not compare crawler responses.'
+             : 'Access test inconclusive: our normal browser-style request was also refused or challenged, so we could not compare crawler responses.') + DISCLOSE,
+      'Unable to verify');
   }
   const cdn = detectCdn(browser.hdr);
-  const names = { gptbot: 'GPTBot', claudebot: 'ClaudeBot', perplexitybot: 'PerplexityBot' };
-  const blockedBots = Object.keys(botRes).filter(k => looksBlocked(botRes[k])).map(k => names[k]);
-  if (blockedBots.length === 0) {
-    return item('firewall', 'pass', label, `${cdn ? cdn + ' detected, but it ' : 'Your firewall '}did not block AI bot requests in our test. (This checks user-agent blocking; some firewalls also verify bot IP addresses.)`, 'No block found');
+  const keys = Object.keys(botRes);
+  const blocked = [], failed = [];
+  keys.forEach(k => {
+    const kind = classifyResponse(botRes[k]);
+    if (kind === 'error') { failed.push(k); return; }
+    if (kind !== 'ok') { blocked.push(k); return; }
+    // HTTP 200 but a very different (much shorter) page than a normal visitor gets
+    if (browser.text.length > 8000 && botRes[k].text.length < browser.text.length * 0.15) blocked.push(k);
+  });
+  const names = (arr) => arr.map(k => BOT_NAMES[k] || k).join(', ');
+  const where = cdn ? ' (' + cdn + ')' : '';
+  if (blocked.length === 0 && failed.length >= 2) {
+    return item('firewall', 'na', label, 'Access test inconclusive: several simulated crawler requests timed out, so we could not tell whether crawlers are restricted.' + DISCLOSE, 'Unable to verify');
   }
-  if (blockedBots.length === 1) {
-    return item('firewall', 'warn', label, `Your firewall${cdn ? ' (' + cdn + ')' : ''} appears to block ${blockedBots[0]} even though normal visitors get through. Check your bot-protection settings.`, 'Possible block');
+  if (blocked.length === 0) {
+    return item('firewall', 'pass', label, `No User-Agent-based block detected in this test${cdn ? ' (' + cdn + ' detected)' : ''}. Normal visitors and simulated search crawlers both received the page.` + DISCLOSE, 'No block detected');
   }
-  return item('firewall', 'fail', label, `Your firewall${cdn ? ' (' + cdn + ')' : ''} appears to block ${blockedBots.join(', ')} even though normal visitors get through. Your robots.txt may say "welcome", but these bots are turned away before they read it.`, 'Possible block');
+  if (blocked.length >= 2) {
+    return item('firewall', 'fail', label, `Possible User-Agent-based bot restriction detected${where} for simulated ${names(blocked)} while a normal visitor got through.` + DISCLOSE, 'Possible restriction');
+  }
+  return item('firewall', 'warn', label, `Possible User-Agent-based bot restriction detected${where} for simulated ${names(blocked)} while a normal visitor got through.` + DISCLOSE, 'Possible restriction');
 }
 
 // exported for local testing only
-exports._test = { parseRobots, checkBotAccess, isBlockedHost, pickPages, sitemapEntries, firewallItem, looksBlocked };
+exports._test = { parseRobots, checkBotAccess, isBlockedHost, pickPages, sitemapEntries, firewallItem, looksBlocked, classifyResponse };
