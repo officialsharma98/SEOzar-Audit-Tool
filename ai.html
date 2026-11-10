@@ -550,10 +550,19 @@
   const SHOW_FIXES = false;   // true = also show a "recommended fix" line under failed / partial checks
   const STATUS_LABEL = { pass: 'Passed', warn: 'Partially passed', fail: 'Needs attention', info: 'Informational', na: 'Not applicable', unverified: 'Unable to verify' };
 
+  // ===== STRICT BINARY SCORING (the only scoring rule; there is no proportional / coverage-based scoring anywhere) =====
+  //   Passed (status 'pass')           -> 100% of the check's points
+  //   Partially passed / Needs attention -> 0 points
+  //   Not applicable                    -> excluded from the score
+  //   Unable to verify                  -> 0 points, excluded from the score, shown in its own section
+  // Normalization: score = points earned / points of the checks that COULD be scored x 100, so excluded checks neither
+  // help nor hurt. A check is 'pass' only when EVERY applicable page passes. Page coverage (e.g. 9 of 10) is still reported.
+  function earnedPoints(status, points) { return status === 'pass' ? points : 0; }
+
   // scope 'site' = run once for the whole website; scope 'pages' = run on every scanned page and combined.
-  //   mode 'ratio'   = points = weight x (applicable pages passing / applicable pages scanned)
-  //   mode 'entity'  = homepage identity + coverage + name consistency (custom)
-  //   mode 'clarity' = share of 5 clarity signals found across all scanned pages (custom)
+  //   mode 'ratio'   = passes only when ALL applicable pages pass (the 'x of y pages' coverage is shown, never converted into points)
+  //   mode 'entity'  = passes when the homepage has valid business markup AND the business name is consistent across pages (custom)
+  //   mode 'clarity' = passes only when all 5 clarity signals (passAt) are found across the scanned pages (custom)
   //   noneFail       = if NO scanned page is applicable the check scores 0 (instead of being excluded)
   const CHECKS = [
     // --- AI crawler access (25)
@@ -583,7 +592,7 @@
     { key: 'breadcrumb', cat: 'content', scope: 'pages', mode: 'ratio', weight: 4, label: 'Breadcrumb schema',
       phrase: 'have breadcrumb schema that matches a visible trail', naText: 'Only the homepage was scanned, where breadcrumbs are not expected.',
       fix: 'Add visible breadcrumb navigation with matching BreadcrumbList schema to inner pages.' },
-    { key: 'clarity', cat: 'content', scope: 'pages', mode: 'clarity', weight: 8, label: 'Business & Service Content Clarity',
+    { key: 'clarity', cat: 'content', scope: 'pages', mode: 'clarity', passAt: 5, weight: 8, label: 'Business & Service Content Clarity',
       fix: 'Explain on your key pages what you do, your services or products, who they are for, where you operate and what sets you apart.' },
     { key: 'schema',  cat: 'content', scope: 'pages', mode: 'ratio', weight: 6, noneFail: true, label: 'Schema Validity & Consistency',
       phrase: 'have valid structured data that matches the visible page', noneText: 'No structured data (JSON-LD or Microdata) was found to validate.',
@@ -633,7 +642,7 @@
     { key: 'og', label: 'Open Graph tags', phrase: 'have complete Open Graph tags', note: 'Controls link previews on social platforms, so it is not scored here.' }
   ];
 
-  // Per page: only a full pass counts. A partial ('warn') page earns nothing, the same as a failed page.
+  // Per page: only a full pass counts. A partial ('warn') page counts as not passing, the same as a failed page.
   function pageStatuses(check, pageResults) {
     const dupCount = {};
     if (check.key === 'desc') {
@@ -649,6 +658,7 @@
     });
     return vals;
   }
+  // Display status from page coverage (never used to award points): all pass = Passed, some = Partially passed, none = Needs attention
   function statusFromFrac(f) { return f >= 0.999999 ? 'pass' : f > 0 ? 'warn' : 'fail'; }
 
   function countsLine(passN, n, total, phrase) {
@@ -664,7 +674,7 @@
     const scanned = pageResults.length;
 
     const exclude = (c, why, label, detail, tag, cls) => {
-      rows.push({ key: c.key, cat: c.cat, scope: c.scope, status: 'info', cls: cls || 'info', label, detail, tag, points: c.points, earned: 0, excluded: true, why });
+      rows.push({ key: c.key, cat: c.cat, scope: c.scope, status: 'info', cls: cls || 'info', label, detail, tag, points: c.points, earned: 0, excluded: true, why, unverified: why === 'unverified' });
     };
 
     CHECKS.forEach(c => {
@@ -677,12 +687,12 @@
         }
         if (c.key === 'llms' && it.status !== 'pass') {   // optional file: 0 points when missing, shown as informational
           rows.push({ key: c.key, cat: c.cat, scope: 'site', status: 'info', cls: 'info', label: 'llms.txt', detail: 'No llms.txt file was found. It is an optional, emerging convention worth only a small part of the score.',
-                      tag: 'Not found · Informational', points: c.points, earned: 0 });
+                      tag: 'Not found · Informational', points: c.points, earned: 0, notFound: true });
           return;
         }
         let detail = String(it.detail || '');
         rows.push({ key: c.key, cat: c.cat, scope: 'site', status: it.status, cls: it.status, label: c.key === 'sitemap' || c.key === 'llms' ? it.label : label, detail,
-                    tag: STATUS_LABEL[it.status], points: c.points, earned: it.status === 'pass' ? c.points : 0 });
+                    tag: STATUS_LABEL[it.status], points: c.points, earned: earnedPoints(it.status, c.points) });
         return;
       }
       // ----- page-level checks
@@ -693,11 +703,12 @@
         const names = [];
         pageResults.forEach(p => ((p.meta && p.meta.entityNames) || []).forEach(n => names.push(String(n).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim())));
         const consistent = names.length > 0 && names.every(n => n === names[0] || n.indexOf(names[0]) !== -1 || names[0].indexOf(n) !== -1);
-        const frac = 0.5 * (homeOk ? 1 : 0) + 0.3 * (passN / scanned) + 0.2 * (consistent ? 1 : 0);
+        const passedAll = homeOk && consistent;
+        const status = passedAll ? 'pass' : (homeOk || passN > 0) ? 'warn' : 'fail';
         const detail = (homeOk ? 'Valid business markup found on your homepage. ' : 'No valid business markup found on your homepage. ') +
           'Found on ' + passN + ' of ' + scanned + ' pages scanned' + (names.length ? (consistent ? '; the business name is consistent.' : '; the business name is NOT consistent across pages.') : '.');
-        rows.push({ key: c.key, cat: c.cat, scope: 'pages', status: statusFromFrac(frac), cls: statusFromFrac(frac), label: c.label, detail, tag: STATUS_LABEL[statusFromFrac(frac)],
-                    points: c.points, earned: c.points * frac, fix: c.fix,
+        rows.push({ key: c.key, cat: c.cat, scope: 'pages', status, cls: status, label: c.label, detail, tag: STATUS_LABEL[status],
+                    points: c.points, earned: earnedPoints(status, c.points), fix: c.fix, applicable: scanned, passing: passN,
                     pageVals: pageResults.map(p => ({ url: p.url, status: (p.results.entity && p.results.entity.status) || 'fail' })) });
         return;
       }
@@ -705,11 +716,11 @@
         const SIG = [['what', 'what you do'], ['services', 'your services or products'], ['audience', 'who you serve'], ['geo', 'where you operate'], ['diff', 'what sets you apart']];
         const found = SIG.filter(s => pageResults.some(p => p.meta && p.meta.clarity && p.meta.clarity[s[0]]));
         const missing = SIG.filter(s => found.indexOf(s) === -1).map(s => s[1]);
-        const frac = found.length / SIG.length;
+        const status = found.length >= c.passAt ? 'pass' : found.length > 0 ? 'warn' : 'fail';
         const detail = 'Found ' + found.length + ' of ' + SIG.length + ' clarity signals across the ' + scanned + ' pages scanned.' +
           (missing.length ? ' Not clearly found: ' + missing.join(', ') + '. (Automated text check, so treat it as a guide.)' : ' (Automated text check, so treat it as a guide.)');
-        rows.push({ key: c.key, cat: c.cat, scope: 'pages', status: statusFromFrac(frac), cls: statusFromFrac(frac), label: c.label, detail, tag: STATUS_LABEL[statusFromFrac(frac)],
-                    points: c.points, earned: c.points * frac, fix: c.fix });
+        rows.push({ key: c.key, cat: c.cat, scope: 'pages', status, cls: status, label: c.label, detail, tag: STATUS_LABEL[status],
+                    points: c.points, earned: earnedPoints(status, c.points), fix: c.fix });
         return;
       }
       const vals = pageStatuses(c, pageResults);
@@ -724,10 +735,10 @@
         return;
       }
       const passN = vals.filter(v => v.status === 'pass').length;
-      const frac = passN / n;                      // brief: (applicable pages passing / applicable pages scanned) x max points
+      const frac = passN / n;                      // coverage only: used for the label, never for points
       rows.push({ key: c.key, cat: c.cat, scope: 'pages', status: statusFromFrac(frac), cls: statusFromFrac(frac), label: c.label,
                   detail: countsLine(passN, n, scanned, c.phrase), tag: STATUS_LABEL[statusFromFrac(frac)],
-                  points: c.points, earned: c.points * frac, fix: c.fix, pageVals: vals });
+                  points: c.points, earned: earnedPoints(statusFromFrac(frac), c.points), fix: c.fix, pageVals: vals, applicable: n, passing: passN });
     });
 
     // ----- score: unverifiable / not-applicable checks are left out and the rest is rescaled to 100
@@ -764,16 +775,22 @@
     // ----- grouped, ordered rows: needs-attention first, then partial, then passed, then informational
     const order = { fail: 0, warn: 1, pass: 2, info: 3 };
     const groups = CATEGORIES.map(cat => {
-      const list = rows.filter(r => r.cat === cat.id && !(r.excluded && r.why === 'na'));
+      const list = rows.filter(r => r.cat === cat.id && !r.excluded);
       list.sort((a, b) => order[a.status] - order[b.status]);
       return { id: cat.id, name: cat.name, rows: list };
     });
     const shownRows = [].concat.apply([], groups.map(g => g.rows));
+    // Category subtotals (for exports / checks): max = the category's full allocation, available = points of checks that could be scored.
+    const categories = CATEGORIES.map(cat => {
+      const mine = counted.filter(r => r.cat === cat.id);
+      return { id: cat.id, name: cat.name, max: cat.max, available: Math.round(mine.reduce((t, r) => t + r.points, 0) * 100) / 100,
+               earned: Math.round(mine.reduce((t, r) => t + r.earned, 0) * 100) / 100 };
+    });
 
     const counts = { pass: 0, warn: 0, fail: 0 };
     shownRows.forEach(r => { if (r.status in counts) counts[r.status]++; });
 
-    return { pct, capped: false, rows: shownRows, groups, controls, extras, counts, pageCount: scanned,
+    return { pct, capped: false, rows: shownRows, groups, categories, unverified, controls, extras, counts, pageCount: scanned,
              unverifiedCount: unverified.length, unverifiedShare: Math.round(unverified.reduce((t, r) => t + r.points, 0)) };
   }
   // SCORING-END
@@ -1055,6 +1072,7 @@
     <div class="main">
       <div class="pb"><h3>Audit Overview</h3><p class="sub">A detailed breakdown of key checks, their status and what you can do next.</p></div>
       ${result.groups.map(g => g.rows.length ? catHead(g.name) + g.rows.map(row).join('') : '').join('')}
+      ${result.unverified.length ? '<div class="pb ah"><h3 style="font-size:12px;color:#0F2A47;margin:0 0 4px">Unable to verify (not scored)</h3><div class="chips">' + result.unverified.map(chip).join('') + '</div></div>' : ''}
       ${result.controls.length ? '<div class="pb ah"><h3 style="font-size:12px;color:#0F2A47;margin:0 0 4px">Training / AI-use crawler controls (not scored)</h3><div class="chips">' + result.controls.map(chip).join('') + '</div></div>' : ''}
       ${result.extras.length ? '<div class="pb ah"><h3 style="font-size:12px;color:#0F2A47;margin:0 0 4px">Extra signals — not scored</h3><div class="chips">' + result.extras.map(chip).join('') + '</div></div>' : ''}
     </div>
@@ -1204,6 +1222,7 @@
           <p>A detailed breakdown of the key checks and where your site stands on each.</p>
           ${result.unverifiedCount ? '<div class="score-note">' + result.unverifiedCount + ' check' + (result.unverifiedCount === 1 ? ' was' : 's were') + ' marked "Unable to verify" and left out. Your score is calculated from the checks that could be verified (about ' + (100 - result.unverifiedShare) + '% of the full model).</div>' : ''}
           ${result.groups.map(g => g.rows.length ? '<div class="cat-title"><span>' + esc(g.name) + '</span><small>' + g.rows.filter(r => r.status === 'pass').length + ' of ' + g.rows.length + ' passed</small></div>' + g.rows.map(rowHtml).join('') : '').join('')}
+          ${result.unverified.length ? '<div class="extras-title">Unable to verify (not scored)</div>' + result.unverified.map(rowHtml).join('') : ''}
           ${result.controls.length ? '<div class="extras-title">Training / AI-use crawler controls (informational, not scored)</div>' + result.controls.map(rowHtml).join('') : ''}
           ${result.extras.length ? '<div class="extras-title">Extra signals — not scored</div>' + result.extras.map(rowHtml).join('') : ''}
           <details class="pg-details scanned-pages"><summary>Pages we scanned (${result.pageCount})</summary><ul>
@@ -1281,7 +1300,8 @@
           score: pendingResult ? pendingResult.pct : null,
           capped: !!(pendingResult && pendingResult.capped),
           pageCount: pendingResult ? pendingResult.pageCount : 0,
-          rows: (pendingResult ? pendingResult.rows : []).map(r => ({ key: r.key, status: r.status, earned: r.earned, points: r.points, tag: r.tag })),
+          rows: (pendingResult ? pendingResult.rows.concat(pendingResult.unverified) : []).map(r => ({ key: r.key, status: r.status, earned: r.earned, points: r.points, tag: r.tag, unverified: !!r.unverified })),
+          categories: pendingResult ? pendingResult.categories : [],
           date: new Date().toISOString()
         })
       }).catch(() => {});
